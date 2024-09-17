@@ -2,3 +2,5 @@
 node_modules/
 # TypeScript
 out/
+# Nix
+npm_config_prefix/

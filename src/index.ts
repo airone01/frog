@@ -1,6 +1,6 @@
-/* eslint-disable n/no-unsupported-features/es-syntax */
 import {Command} from 'commander';
 import {setup} from './setup.js';
+import {bat} from './pkgs/bat.js';
 
 const program = new Command();
 
@@ -15,6 +15,17 @@ program.command('setup', {isDefault: true})
     setup();
   });
 
-program.command('install');
+program.command('install')
+  .argument('package', 'package to download')
+  .action(arguments_ => {
+    switch (arguments_[0]) { // eslint-disable-line @typescript-eslint/switch-exhaustiveness-check
+      case 'bat': {
+        bat()
+          .catch(() => { // eslint-disable-line promise/prefer-await-to-then
+            console.log('there was an error');
+          });
+      }
+    }
+  });
 
 program.parse();

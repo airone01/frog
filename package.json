@@ -7,24 +7,26 @@
     "pnpm": "=6.35.1"
   },
   "scripts": {
-    "build": "bun bun ./src/index.ts --target node --outfile=./out.js --sourcemap=inline --minify",
+    "build": "webpack",
+    "build-prod": "bun --bun webpack --mode production",
     "dev": "bun run ./src/index.ts"
   },
   "devDependencies": {
+    "@types/bun": "^1.1.9",
     "@types/node": "^22.5.5",
-    "typescript": "5.6.2",
-    "xo": "^0.59.3",
-    "@types/bun": "^1.1.9"
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.6.2",
+    "webpack-cli": "^5.1.4",
+    "xo": "^0.59.3"
   },
   "dependencies": {
     "@types/lolcatjs": "^2.4.1",
     "axios": "^1.7.7",
     "boxen": "^8.0.1",
-    "chalk": "^5.3.0",
-    "commander": "^12.1.0",
+    "chalk": "5.3.0",
+    "commander": "=10.0.1",
     "lolcatjs": "^2.4.3",
     "ora": "^8.1.0",
     "zod": "^3.23.8"
-  },
-  "module": "index.ts"
+  }
 }

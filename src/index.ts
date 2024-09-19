@@ -1,7 +1,7 @@
 import {Command} from 'commander';
 import {z} from 'zod';
-import {setup} from './setup.js';
-import {bat} from './pkgs/bat.js';
+import {setup} from './setup';
+import {bat} from './pkgs/bat';
 
 const program = new Command();
 

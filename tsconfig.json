@@ -5,17 +5,16 @@
       "ESNext",
       "DOM"
     ],
-    "target": "ES2019",
+    "target": "ES5",
     "module": "ESNext",
     "moduleDetection": "force",
     "jsx": "react-jsx",
-    "allowJs": true,
     // Bundler mode
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "noEmit": true,
+    // "  Emit": true,
     // Best practices
+    "noImplicitAny": true,
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,

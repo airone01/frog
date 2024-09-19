@@ -1,6 +1,6 @@
 # Node
 node_modules/
-# TypeScript
-out.js
+# Webpack
+build/
 # Nix
 npm_config_prefix/

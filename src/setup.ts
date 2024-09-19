@@ -1,6 +1,6 @@
 import c from 'chalk';
 import boxen from 'boxen';
-import {title} from './figlet.js';
+import {title} from './figlet';
 
 function setup() {
   const border = {

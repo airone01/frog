@@ -1,6 +1,4 @@
 {
   "space": true,
-  "rules": {
-    "unicorn/prefer-top-level-await": "off"
-  }
+  "rules": {}
 }

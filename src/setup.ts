@@ -1,5 +1,4 @@
 import c from 'chalk';
-// Import * as align from '@topcli/text-align';
 import boxen from 'boxen';
 import {title} from './figlet.js';
 

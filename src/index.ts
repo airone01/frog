@@ -1,4 +1,5 @@
 import {Command} from 'commander';
+import {z} from 'zod';
 import {setup} from './setup.js';
 import {bat} from './pkgs/bat.js';
 
@@ -17,13 +18,23 @@ program.command('setup', {isDefault: true})
 
 program.command('install')
   .argument('package', 'package to download')
-  .action(arguments_ => {
-    switch (arguments_[0]) { // eslint-disable-line @typescript-eslint/switch-exhaustiveness-check
+  .description('install a package/app')
+  .action(async arguments_ => {
+    const {success, data} = z.string().safeParse(arguments_);
+    if (!success) {
+      console.error('Please provide a package name.');
+      return;
+    }
+
+    const packageName = data.split(' ')[0];
+    switch (packageName) {
       case 'bat': {
-        bat()
-          .catch(() => { // eslint-disable-line promise/prefer-await-to-then
-            console.log('there was an error');
-          });
+        await bat();
+        break;
+      }
+
+      default: {
+        console.log('This package does not exist (yet!)\nList all packages with "frog list"');
       }
     }
   });

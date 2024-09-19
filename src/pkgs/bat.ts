@@ -3,9 +3,8 @@ import ora from 'ora';
 
 const releaseUrl = 'https://github.com/sharkdp/bat/releases/download/v0.24.0/bat-v0.24.0-x86_64-unknown-linux-gnu.tar.gz';
 
-const s = ora('Downloading bat').start();
-
 async function bat() {
+  const s = ora('Downloading bat').start();
   try {
     const response = await axios
       .get(releaseUrl);

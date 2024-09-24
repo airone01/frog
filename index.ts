@@ -1,7 +1,7 @@
 import {Command} from 'commander';
 import {z} from 'zod';
-import {setup} from './setup';
-import {bat} from './pkgs/bat';
+import {displayTitle, setup} from './src/setup';
+import {bat} from './src/pkgs/bat';
 
 const program = new Command();
 
@@ -25,6 +25,8 @@ program.command('install')
       console.error('Please provide a package name.');
       return;
     }
+
+    displayTitle();
 
     const packageName = data.split(' ')[0];
     switch (packageName) {

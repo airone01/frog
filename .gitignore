@@ -1,6 +1,6 @@
-# Node
+# Node/Bun
 node_modules/
-# Webpack
-build/
+# Bun
+out.js
 # Nix
 npm_config_prefix/

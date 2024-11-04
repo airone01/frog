@@ -2,6 +2,7 @@ import {Command} from 'commander';
 import {z} from 'zod';
 import {displayTitle, setup} from './src/setup';
 import {bat} from './src/pkgs/bat';
+import {eza} from './src/pkgs';
 
 const program = new Command();
 
@@ -32,6 +33,11 @@ program.command('install')
     switch (packageName) {
       case 'bat': {
         await bat();
+        break;
+      }
+
+      case 'eza': {
+        await eza();
         break;
       }
 

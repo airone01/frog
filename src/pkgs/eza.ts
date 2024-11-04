@@ -4,27 +4,27 @@ import ora from 'ora';
 import {$} from 'bun';
 import {config} from '../config';
 
-const releaseUrl = 'https://github.com/sharkdp/bat/releases/download/v0.24.0/bat-v0.24.0-x86_64-unknown-linux-gnu.tar.gz';
+const releaseUrl = 'https://github.com/eza-community/eza/releases/download/v0.20.6/eza_x86_64-unknown-linux-gnu.tar.gz';
 
-async function bat() {
-  const s = ora('Downloading bat').start();
+async function eza() {
+  const s = ora('Downloading eza').start();
   try {
     // DL original gz
     const response = await fetch(releaseUrl);
 
     // Write to file
-    const tarGzPath = resolve(config.binPath, 'bat-dl.tar.gz');
+    const tarGzPath = resolve(config.binPath, 'eza-dl.tar.gz');
     await Bun.write(tarGzPath, response);
 
     // Uncompress
-    s.text = 'Uncompressing bat';
-    const directoryPath = resolve(config.binPath, 'bat-dl');
+    s.text = 'Uncompressing eza';
+    const directoryPath = resolve(config.binPath, 'eza-dl');
     await mkdir(directoryPath);
     await $`tar -xf ${tarGzPath} -C ${directoryPath}`;
 
     // Install
-    const directoryBinaryPath = resolve(config.binPath, 'bat-dl', 'bat-v0.24.0-x86_64-unknown-linux-gnu', 'bat');
-    const binaryPath = resolve(config.binPath, 'bat');
+    const directoryBinaryPath = resolve(config.binPath, 'eza-dl', 'eza');
+    const binaryPath = resolve(config.binPath, 'eza');
     await $`mv ${directoryBinaryPath} ${binaryPath}`;
 
     // Perms
@@ -34,12 +34,12 @@ async function bat() {
     await $`rm -r ${directoryPath}`;
     await $`rm ${tarGzPath}`;
 
-    s.succeed('Installed bat');
+    s.succeed('Installed eza');
   } catch {
-    s.fail('There was a problem downloading bat. Sorry 0_0');
+    s.fail('There was a problem downloading eza. Sorry 0_0');
   }
 }
 
 export {
-  bat,
+  eza,
 };

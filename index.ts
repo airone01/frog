@@ -1,54 +1,123 @@
-import {Command} from 'commander';
+import {exit} from 'node:process';
+import {program} from 'commander';
 import {z} from 'zod';
-import {displayTitle, setup} from './src/setup';
-import {bat} from './src/pkgs/bat';
-import {eza, jetbrainsClion} from './src/pkgs';
-
-const program = new Command();
+import {PackageManager} from './src/package-manager';
+import {version} from './package.json' assert { type: 'json' };
+import {logger} from './src/logger';
 
 program
-  .name('frog')
-  .description('Package manager for 42 students :-)')
-  .version('v0.1.0');
+  .name('package-manager')
+  .description('Custom package manager for 42 School environment')
+  .version(version);
 
-program.command('setup', {isDefault: true})
-  .description('install/update frog on your machine')
-  .action(() => {
-    setup();
+program
+  .command('install <package>')
+  .description('Install a package')
+  .option('-f, --force', 'Force installation even if binaries exist')
+  .action(async (_package, options) => {
+    const manager = new PackageManager();
+    try {
+      const {success: packageSuccess, data: __package} = z.string().safeParse(_package);
+
+      if (!packageSuccess) {
+        throw new Error('Please provide a package name.');
+      }
+
+      const {success: optionsSuccess, data: __options} = z.object({force: z.boolean()}).safeParse(options);
+
+      await manager.install(__package, __options);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error('Error:', error.message);
+      } else {
+        logger.error('Error:', error);
+      }
+
+      exit(1);
+    }
   });
 
-program.command('install')
-  .argument('package', 'package to download')
-  .description('install a package/app')
-  .action(async arguments_ => {
-    const {success, data} = z.string().safeParse(arguments_);
-    if (!success) {
-      console.error('Please provide a package name.');
-      return;
+program
+  .command('uninstall <package>')
+  .description('Uninstall a package')
+  .action(async _package => {
+    const manager = new PackageManager();
+    try {
+      const {success: packageSuccess, data: __package} = z.string().safeParse(_package);
+
+      if (!packageSuccess) {
+        throw new Error('Please provide a package name.');
+      }
+
+      await manager.uninstall(__package);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error('Error:', error.message);
+      } else {
+        logger.error('Error:', error);
+      }
+
+      exit(1);
     }
+  });
 
-    displayTitle();
-
-    const packageName = data.split(' ')[0];
-    switch (packageName) {
-      case 'clion': {
-        await jetbrainsClion();
-        break;
+program
+  .command('sync')
+  .description('Sync packages to goinfre')
+  .action(async () => {
+    const manager = new PackageManager();
+    try {
+      await manager.sync();
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error('Error:', error.message);
+      } else {
+        logger.error('Error:', error);
       }
 
-      case 'bat': {
-        await bat();
-        break;
+      exit(1);
+    }
+  });
+
+program
+  .command('list')
+  .description('List installed packages')
+  .action(async () => {
+    const manager = new PackageManager();
+    try {
+      await manager.list();
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error('Error:', error.message);
+      } else {
+        logger.error('Error:', error);
       }
 
-      case 'eza': {
-        await eza();
-        break;
+      exit(1);
+    }
+  });
+
+program
+  .command('search <query>')
+  .description('Search for available packages')
+  .action(async query => {
+    const manager = new PackageManager();
+    try {
+      const {success: querySuccess, data: __query} = z.string().safeParse(query);
+
+      if (!querySuccess) {
+        throw new Error('Please provide a search query.');
       }
 
-      default: {
-        console.log('This package does not exist (yet!)\nList all packages with "frog list"');
+      await manager.search(__query);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error('Error:', error.message);
+      } else {
+        logger.error('Error:', error);
       }
+
+      exit(1);
     }
   });
 

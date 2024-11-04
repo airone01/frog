@@ -7,7 +7,8 @@
   },
   "scripts": {
     "build": "bun bun --format=esm --outfile=./out.js --packages=bundle --minify --target=bun src/index.ts",
-    "dev": "bun run ./index.ts"
+    "dev": "bun run ./index.ts",
+    "cleanup": "rm -rf ~/bin/ ~/sgoinfre/*"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -19,7 +20,8 @@
     "boxen": "^8.0.1",
     "chalk": "5.3.0",
     "commander": "12.1.0",
-    "ora": "^8.1.0",
+    "winston": "^3.16.0",
+    "winston-console-format": "^1.0.8",
     "zod": "^3.23.8"
   },
   "module": "index.ts"

@@ -82,10 +82,19 @@ program
 program
   .command('list')
   .description('List installed packages')
-  .action(async () => {
+  .option('-a, --available', 'List available packages that are not installed')
+  .action(async options => {
     const manager = new PackageManager();
     try {
-      await manager.list();
+      const {success: optionsSuccess, data: __options} = z
+        .object({available: z.boolean().optional()})
+        .safeParse(options);
+
+      if (!optionsSuccess) {
+        throw new Error('Invalid options provided.');
+      }
+
+      await manager.list(__options);
     } catch (error) {
       if (error instanceof Error) {
         logger.error('Error:', error.message);

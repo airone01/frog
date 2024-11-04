@@ -105,7 +105,7 @@ class PackageManager {
         }
       }
 
-      logger.info('Creating symlinks...');
+      logger.debug('Creating symlinks...');
       for (const binary of config.binaries) {
         const binaryPath = join(packageDirectory, binary);
         const binaryLink = join(this.binPath, basename(binary));
@@ -137,7 +137,7 @@ class PackageManager {
   }
 
   async sync(): Promise<void> {
-    logger.info('Syncing packages to goinfre');
+    logger.debug('Syncing packages to goinfre');
     const database = this.getPackageDb();
 
     if (database === undefined) {
@@ -145,7 +145,7 @@ class PackageManager {
     }
 
     try {
-      logger.info('Clearing goinfre directory...');
+      logger.debug('Clearing goinfre directory...');
       rmSync(this.goinfrePath, {recursive: true, force: true});
       mkdirSync(this.goinfrePath);
 
@@ -193,7 +193,7 @@ class PackageManager {
 
       const config = database[packageName];
 
-      logger.info('Removing symlinks...');
+      logger.debug('Removing symlinks...');
       for (const binary of config.binaries) {
         const binaryLink = join(this.binPath, basename(binary));
         if (existsSync(binaryLink)) {
@@ -201,7 +201,7 @@ class PackageManager {
         }
       }
 
-      logger.info('Removing package directories...');
+      logger.debug('Removing package directories...');
       rmSync(join(this.sgoinfrePath, packageName), {recursive: true, force: true});
       rmSync(join(this.goinfrePath, packageName), {recursive: true, force: true});
 
@@ -214,8 +214,9 @@ class PackageManager {
     }
   }
 
-  async list(): Promise<void> {
-    logger.debug('Loading installed packages');
+  // Then update the list method in the PackageManager class:
+  async list(options: {available?: boolean} = {}): Promise<void> {
+    logger.debug('Loading package information');
 
     try {
       const database = this.getPackageDb();
@@ -224,19 +225,15 @@ class PackageManager {
         throw new Error('Failed to load package database');
       }
 
-      if (Object.keys(database).length === 0) {
-        logger.info('No packages installed');
-        return;
-      }
-
-      logger.info(`Installed packages:\n${Object.entries(database).map(([name, config]) => `           - ${name}@${config.version}`).join(', ')}`);
+      await (options.available ? this.listAvailablePackages(database) : this.listInstalledPackages(database));
     } catch (error) {
       logger.error('Failed to list packages', error);
+      throw error;
     }
   }
 
   async search(query: string): Promise<void> {
-    logger.info('Searching for packages');
+    logger.debug('Searching for packages');
     let foundAny = false;
 
     try {
@@ -266,7 +263,7 @@ class PackageManager {
       }
 
       if (!foundAny) {
-        logger.info('No packages found matching your query');
+        logger.warn('No packages found matching your query');
       }
     } catch (error) {
       logger.error('Search failed', error);
@@ -274,7 +271,7 @@ class PackageManager {
   }
 
   async update(packageName: string, options: {force?: boolean} = {}): Promise<void> {
-    logger.info(`Checking for updates for ${packageName}`);
+    logger.debug(`Checking for updates for ${packageName}`);
     const database = this.getPackageDb();
 
     if (database === undefined) {
@@ -328,7 +325,7 @@ class PackageManager {
       }
 
       if (newConfig.version === currentVersion) {
-        logger.info(`Package ${packageName} is already at the latest version (${currentVersion})`);
+        logger.warn(`Package ${packageName} is already at the latest version (${currentVersion})`);
         return;
       }
 
@@ -369,7 +366,90 @@ class PackageManager {
     });
 
     await Promise.all(updatePromises);
-    logger.info('Finished checking for updates');
+    logger.debug('Finished checking for updates');
+  }
+
+  private async listInstalledPackages(database: PackageDatabase): Promise<void> {
+    if (Object.keys(database).length === 0) {
+      logger.info('No packages installed');
+      return;
+    }
+
+    logger.info('Installed packages:');
+    for (const [name, config] of Object.entries(database)) {
+      logger.info(`           - ${name}@${config.version}`);
+    }
+  }
+
+  private async listAvailablePackages(installedDatabase: PackageDatabase): Promise<void> {
+    logger.debug('Searching for available packages...');
+    const availablePackages = new Map<string, {
+      source: string;
+      version?: string;
+    }>();
+
+    // Check shared directory
+    if (existsSync(this.sharedPackages)) {
+      for (const packageName of readdirSync(this.sharedPackages)) {
+        if (packageName === 'registry.json' || installedDatabase[packageName]) {
+          continue;
+        }
+
+        const configPath = join(this.sharedPackages, packageName, 'package.json');
+        if (existsSync(configPath)) {
+          try {
+            const config = await this.loadPackageConfig(configPath); // eslint-disable-line no-await-in-loop
+            if (config) { // eslint-disable-line max-depth
+              availablePackages.set(packageName, {
+                source: 'shared',
+                version: config.version,
+              });
+            }
+          } catch {
+            logger.debug(`Failed to load config for ${packageName} in shared directory`);
+          }
+        }
+      }
+    }
+
+    // Check registry
+    const registry = await this.loadRegistry();
+    if (registry) {
+      for (const [packageName, packageInfo] of Object.entries(registry)) {
+        if (installedDatabase[packageName]) {
+          continue;
+        }
+
+        try {
+          const response = await fetch(packageInfo.url.replace(/\.tar\.gz$/, '/package.json')); // eslint-disable-line no-await-in-loop
+          if (response.ok) {
+            const data: unknown = await response.json(); // eslint-disable-line no-await-in-loop
+            const config = zPackageConfig.safeParse(data);
+            if (config.success) { // eslint-disable-line max-depth
+              availablePackages.set(packageName, {
+                source: 'remote',
+                version: config.data.version,
+              });
+            }
+          }
+        } catch {
+          logger.debug(`Failed to fetch version for remote package ${packageName}`);
+        }
+      }
+    }
+
+    if (availablePackages.size === 0) {
+      logger.debug('No additional packages available');
+      return;
+    }
+
+    logger.info('Available packages:');
+    const sortedAvailablePackages = new Map([...availablePackages.entries()].sort(([nameA], [nameB]) => nameA.localeCompare(nameB)));
+    for (const [name, info] of sortedAvailablePackages) {
+      const versionString = info.version ? `@${info.version}` : '';
+      const sourceString = `(${info.source})`;
+      logger.info(`           - ${name}${versionString} ${sourceString}`);
+    }
   }
 
   private ensureDirectories(): void {
@@ -398,12 +478,12 @@ class PackageManager {
   }
 
   private savePackageDb(database: PackageDatabase): void {
-    logger.info('Saving package database');
+    logger.debug('Saving package database');
     try {
       // Validate before saving
       zPackageDatabase.parse(database);
       writeFileSync(this.packageDb, JSON.stringify(database, null, 2));
-      logger.info('Package database saved successfully');
+      logger.debug('Package database saved successfully');
     } catch (error) {
       logger.error('Invalid package database format', error);
     }
@@ -451,14 +531,14 @@ class PackageManager {
 
     // Check if it's a local path
     if (existsSync(packageName)) {
-      logger.info('Package found in local path');
+      logger.debug('Package found in local path');
       return {type: 'local', location: packageName};
     }
 
     // Check if package has a remote URL in registry
     const registry = await this.loadRegistry();
     if (registry?.[packageName]?.url) {
-      logger.info('Package found in remote registry');
+      logger.debug('Package found in remote registry');
       return {type: 'remote', location: registry[packageName].url};
     }
 
@@ -467,7 +547,7 @@ class PackageManager {
   }
 
   private async downloadPackage(url: string, destinationDirectory: string): Promise<void> {
-    logger.info('Downloading package');
+    logger.debug('Downloading package');
 
     try {
       const response = await fetch(url);
@@ -478,14 +558,14 @@ class PackageManager {
       const buffer = await response.arrayBuffer();
       const temporaryFile = join(this.goinfrePath, 'temp.tar.gz');
 
-      logger.info('Saving package...');
+      logger.debug('Saving package...');
       writeFileSync(temporaryFile, Buffer.from(buffer));
 
-      logger.info('Extracting package...');
+      logger.debug('Extracting package...');
       await $`tar -xzf ${temporaryFile} -C ${destinationDirectory}`.quiet();
       unlinkSync(temporaryFile);
 
-      logger.info('Package downloaded and extracted successfully');
+      logger.info('Package installed successfully');
     } catch (error) {
       logger.error('Download failed', error);
     }

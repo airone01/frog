@@ -121,4 +121,31 @@ program
     }
   });
 
+program
+  .command('update [package]')
+  .description('Update all packages or a specific package')
+  .option('-f, --force', 'Force update even if binaries exist')
+  .action(async (_package, options) => {
+    const manager = new PackageManager();
+    try {
+      const {data: __options} = z.object({force: z.boolean()}).safeParse(options);
+      const __options2: {force: boolean} = __options ?? {force: false};
+
+      if (_package) {
+        const {success: packageSuccess, data: __package} = z.string().safeParse(_package);
+        if (!packageSuccess) {
+          throw new Error('Please provide a valid package name.');
+        }
+
+        await manager.update(__package, __options2);
+      } else {
+        await manager.updateAll(__options2);
+      }
+    } catch (error) {
+      logger.error('Error:', error);
+
+      exit(1);
+    }
+  });
+
 program.parse();

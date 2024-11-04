@@ -273,6 +273,105 @@ class PackageManager {
     }
   }
 
+  async update(packageName: string, options: {force?: boolean} = {}): Promise<void> {
+    logger.info(`Checking for updates for ${packageName}`);
+    const database = this.getPackageDb();
+
+    if (database === undefined) {
+      throw new Error('Failed to load package database');
+    }
+
+    try {
+      if (!database[packageName]) {
+        logger.warn(`Package ${packageName} is not installed`);
+        return;
+      }
+
+      const currentVersion = database[packageName].version;
+      const source = await this.findPackageSource(packageName);
+
+      if (!source) {
+        logger.error(`Package ${packageName} not found in any source`);
+        return;
+      }
+
+      let newConfig: PackageConfig | undefined;
+
+      switch (source.type) {
+        case 'shared': {
+          const configPath = join(source.location, 'package.json');
+          newConfig = await this.loadPackageConfig(configPath);
+          break;
+        }
+
+        case 'local': {
+          const configPath = join(source.location, 'package.json');
+          newConfig = await this.loadPackageConfig(configPath);
+          break;
+        }
+
+        case 'remote': {
+          // For remote packages, we need to check the version without downloading
+          const response = await fetch(source.location.replace(/\.tar\.gz$/, '/package.json'));
+          if (!response.ok) {
+            throw new Error(`Failed to check remote version: ${response.statusText}`);
+          }
+
+          const data: unknown = await response.json();
+          newConfig = zPackageConfig.parse(data);
+          break;
+        }
+      }
+
+      if (!newConfig) {
+        throw new Error('Failed to load new package configuration');
+      }
+
+      if (newConfig.version === currentVersion) {
+        logger.info(`Package ${packageName} is already at the latest version (${currentVersion})`);
+        return;
+      }
+
+      logger.info(`Updating ${packageName} from version ${currentVersion} to ${newConfig.version}`);
+
+      // Uninstall the old version
+      await this.uninstall(packageName);
+
+      // Install the new version
+      await this.install(packageName, options);
+
+      logger.info(`Successfully updated ${packageName} to version ${newConfig.version}`);
+    } catch (error) {
+      logger.error(`Failed to update ${packageName}`, error);
+      throw error;
+    }
+  }
+
+  async updateAll(options: {force?: boolean} = {}): Promise<void> {
+    logger.info('Checking for updates for all installed packages');
+    const database = this.getPackageDb();
+
+    if (database === undefined) {
+      throw new Error('Failed to load package database');
+    }
+
+    if (Object.keys(database).length === 0) {
+      logger.info('No packages installed');
+      return;
+    }
+
+    const updatePromises = Object.keys(database).map(async packageName => {
+      try {
+        await this.update(packageName, options);
+      } catch (error) {
+        logger.error(`Failed to update ${packageName}`, error);
+      }
+    });
+
+    await Promise.all(updatePromises);
+    logger.info('Finished checking for updates');
+  }
+
   private ensureDirectories(): void {
     for (const directory of [this.sgoinfrePath, this.goinfrePath, this.binPath]) {
       if (!existsSync(directory)) {

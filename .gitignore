@@ -1,6 +1,6 @@
 # Node/Bun
 node_modules/
 # Bun
-out.js
+frog
 # Nix
 npm_config_prefix/

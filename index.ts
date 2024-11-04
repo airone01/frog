@@ -2,11 +2,11 @@ import {exit} from 'node:process';
 import {program} from 'commander';
 import {z} from 'zod';
 import {PackageManager} from './src/package-manager';
-import {version} from './package.json' assert { type: 'json' };
+import {version, name} from './package.json' assert { type: 'json' };
 import {logger} from './src/logger';
 
 program
-  .name('package-manager')
+  .name(name)
   .description('Custom package manager for 42 School environment')
   .version(version);
 

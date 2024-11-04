@@ -2,7 +2,7 @@ import {Command} from 'commander';
 import {z} from 'zod';
 import {displayTitle, setup} from './src/setup';
 import {bat} from './src/pkgs/bat';
-import {eza} from './src/pkgs';
+import {eza, jetbrainsClion} from './src/pkgs';
 
 const program = new Command();
 
@@ -31,6 +31,11 @@ program.command('install')
 
     const packageName = data.split(' ')[0];
     switch (packageName) {
+      case 'clion': {
+        await jetbrainsClion();
+        break;
+      }
+
       case 'bat': {
         await bat();
         break;

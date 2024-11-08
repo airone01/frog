@@ -1,6 +1,7 @@
 import {exit} from 'node:process';
 import {program} from 'commander';
 import {z} from 'zod';
+import {mightFail, mightFailSync} from '@might/fail';
 import {PackageManager} from './src/package-manager';
 import {version, name} from './package.json' assert { type: 'json' };
 import {logger} from './src/logger';
@@ -16,23 +17,38 @@ program
   .option('-f, --force', 'Force installation even if binaries exist')
   .action(async (_package, options) => {
     const manager = new PackageManager();
-    try {
-      const {success: packageSuccess, data: __package} = z.string().safeParse(_package);
 
-      if (!packageSuccess) {
-        throw new Error('Please provide a package name.');
+    const [validatePackageError, packageName] = mightFailSync(() => {
+      const {success, data} = z.string().safeParse(_package);
+      if (!success) {
+        throw new Error('Please provide a valid package name.');
       }
 
-      const {success: optionsSuccess, data: __options} = z.object({force: z.boolean()}).safeParse(options);
+      return data;
+    });
 
-      await manager.install(__package, __options);
-    } catch (error) {
-      if (error instanceof Error) {
-        logger.error('Error:', error.message);
-      } else {
-        logger.error('Error:', error);
+    if (validatePackageError) {
+      logger.error('Error:', validatePackageError.message);
+      exit(1);
+    }
+
+    const [validateOptionsError, validOptions] = mightFailSync(() => {
+      const {success, data} = z.object({force: z.boolean()}).safeParse(options);
+      if (!success) {
+        throw new Error('Invalid options provided.');
       }
 
+      return data;
+    });
+
+    if (validateOptionsError) {
+      logger.error('Error:', validateOptionsError.message);
+      exit(1);
+    }
+
+    const [installError] = await mightFail(manager.install(packageName, validOptions));
+    if (installError) {
+      logger.error('Installation error:', installError.message);
       exit(1);
     }
   });
@@ -42,21 +58,24 @@ program
   .description('Uninstall a package')
   .action(async _package => {
     const manager = new PackageManager();
-    try {
-      const {success: packageSuccess, data: __package} = z.string().safeParse(_package);
 
-      if (!packageSuccess) {
-        throw new Error('Please provide a package name.');
+    const [validateError, packageName] = mightFailSync(() => {
+      const {success, data} = z.string().safeParse(_package);
+      if (!success) {
+        throw new Error('Please provide a valid package name.');
       }
 
-      await manager.uninstall(__package);
-    } catch (error) {
-      if (error instanceof Error) {
-        logger.error('Error:', error.message);
-      } else {
-        logger.error('Error:', error);
-      }
+      return data;
+    });
 
+    if (validateError) {
+      logger.error('Error:', validateError.message);
+      exit(1);
+    }
+
+    const [uninstallError] = await mightFail(manager.uninstall(packageName));
+    if (uninstallError) {
+      logger.error('Uninstallation error:', uninstallError.message);
       exit(1);
     }
   });
@@ -66,15 +85,9 @@ program
   .description('Sync packages to goinfre')
   .action(async () => {
     const manager = new PackageManager();
-    try {
-      await manager.sync();
-    } catch (error) {
-      if (error instanceof Error) {
-        logger.error('Error:', error.message);
-      } else {
-        logger.error('Error:', error);
-      }
-
+    const [syncError] = await mightFail(manager.sync());
+    if (syncError) {
+      logger.error('Sync error:', syncError.message);
       exit(1);
     }
   });
@@ -85,23 +98,26 @@ program
   .option('-a, --available', 'List available packages that are not installed')
   .action(async options => {
     const manager = new PackageManager();
-    try {
-      const {success: optionsSuccess, data: __options} = z
+
+    const [validateError, validOptions] = mightFailSync(() => {
+      const {success, data} = z
         .object({available: z.boolean().optional()})
         .safeParse(options);
-
-      if (!optionsSuccess) {
+      if (!success) {
         throw new Error('Invalid options provided.');
       }
 
-      await manager.list(__options);
-    } catch (error) {
-      if (error instanceof Error) {
-        logger.error('Error:', error.message);
-      } else {
-        logger.error('Error:', error);
-      }
+      return data;
+    });
 
+    if (validateError) {
+      logger.error('Error:', validateError.message);
+      exit(1);
+    }
+
+    const [listError] = await mightFail(manager.list(validOptions));
+    if (listError) {
+      logger.error('List error:', listError.message);
       exit(1);
     }
   });
@@ -111,21 +127,24 @@ program
   .description('Search for available packages')
   .action(async query => {
     const manager = new PackageManager();
-    try {
-      const {success: querySuccess, data: __query} = z.string().safeParse(query);
 
-      if (!querySuccess) {
-        throw new Error('Please provide a search query.');
+    const [validateError, validQuery] = mightFailSync(() => {
+      const {success, data} = z.string().safeParse(query);
+      if (!success) {
+        throw new Error('Please provide a valid search query.');
       }
 
-      await manager.search(__query);
-    } catch (error) {
-      if (error instanceof Error) {
-        logger.error('Error:', error.message);
-      } else {
-        logger.error('Error:', error);
-      }
+      return data;
+    });
 
+    if (validateError) {
+      logger.error('Error:', validateError.message);
+      exit(1);
+    }
+
+    const [searchError] = await mightFail(manager.search(validQuery));
+    if (searchError) {
+      logger.error('Search error:', searchError.message);
       exit(1);
     }
   });
@@ -136,24 +155,47 @@ program
   .option('-f, --force', 'Force update even if binaries exist')
   .action(async (_package, options) => {
     const manager = new PackageManager();
-    try {
-      const {data: __options} = z.object({force: z.boolean()}).safeParse(options);
-      const __options2: {force: boolean} = __options ?? {force: false};
 
-      if (_package) {
-        const {success: packageSuccess, data: __package} = z.string().safeParse(_package);
-        if (!packageSuccess) {
+    const [validateOptionsError, validOptions] = mightFailSync(() => {
+      const {success, data} = z.object({force: z.boolean()}).safeParse(options);
+      if (!success) {
+        return {force: false}; // Default options if validation fails
+      }
+
+      return data;
+    });
+
+    if (validateOptionsError) {
+      logger.error('Error:', validateOptionsError.message);
+      exit(1);
+    }
+
+    if (_package) {
+      const [validatePackageError, packageName] = mightFailSync(() => {
+        const {success, data} = z.string().safeParse(_package);
+        if (!success) {
           throw new Error('Please provide a valid package name.');
         }
 
-        await manager.update(__package, __options2);
-      } else {
-        await manager.updateAll(__options2);
-      }
-    } catch (error) {
-      logger.error('Error:', error);
+        return data;
+      });
 
-      exit(1);
+      if (validatePackageError) {
+        logger.error('Error:', validatePackageError.message);
+        exit(1);
+      }
+
+      const [updateError] = await mightFail(manager.update(packageName, validOptions));
+      if (updateError) {
+        logger.error('Update error:', updateError.message);
+        exit(1);
+      }
+    } else {
+      const [updateAllError] = await mightFail(manager.updateAll(validOptions));
+      if (updateAllError) {
+        logger.error('Update all error:', updateAllError.message);
+        exit(1);
+      }
     }
   });
 

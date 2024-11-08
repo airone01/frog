@@ -19,6 +19,7 @@
     "xo": "^0.59.3"
   },
   "dependencies": {
+    "@might/fail": "npm:@jsr/might__fail",
     "boxen": "^8.0.1",
     "chalk": "5.3.0",
     "commander": "12.1.0",

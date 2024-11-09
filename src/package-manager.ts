@@ -47,7 +47,7 @@ class PackageManager {
     this.goinfrePath = join('/goinfre', this.username, 'packages');
     this.binPath = join(this.homePath, 'bin');
     this.packageDb = join(this.sgoinfrePath, 'package-db.json');
-    this.sharedPackages = '/sgoinfre/frog';
+    this.sharedPackages = '/sgoinfre/diem';
 
     this.ensureDirectories();
   }

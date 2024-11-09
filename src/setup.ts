@@ -4,9 +4,9 @@ import {title} from './figlet';
 
 function setup() {
   displayTitle();
-  console.log(boxen('Hi! ' + c.bold('frog') + ' is a simple package manager for students and pisciners of 42. It doesn\'t require root access. '
+  console.log(boxen('Hi! ' + c.bold('diem') + ' is a simple package manager for students and pisciners of 42. It doesn\'t require root access. '
   + 'Before using it, keep in mind that it\'s a very good idea to always know what you install on your machine. '
-  + c.bold('frog') + ' will install stuff that I consider safe, but in the end, it\'s still a script that you probably ran on your machine without second thoughts. '
+  + c.bold('diem') + ' will install stuff that I consider safe, but in the end, it\'s still a script that you probably ran on your machine without second thoughts. '
   + 'I could be hiding viruses in there (but I won\'t). So do be careful. '
   + 'There is plan in the near future to implement file sharing between students using ' + c.bold('sgoinfre') + '.\n\nConsidering that, stay safe, fellow coder!',
   {

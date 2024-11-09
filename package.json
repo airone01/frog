@@ -1,14 +1,14 @@
 {
-  "name": "frog",
+  "name": "diem",
   "version": "0.1.0",
   "type": "module",
   "engines": {
     "bun": ">=1.1"
   },
   "scripts": {
-    "build": "bun bun --compile --outfile=frog index.ts",
-    "deploy": "mv frog /sgoinfre/frog/frog/frog",
-    "ci": "bun run build && bun run deploy && chmod 755 /sgoinfre/frog/frog/frog && echo Don\\'t forget to change the version number in package.json",
+    "build": "bun bun --compile --outfile=diem index.ts",
+    "deploy": "mv diem /sgoinfre/diem/diem/diem",
+    "ci": "bun run build && bun run deploy && chmod 755 /sgoinfre/diem/diem/diem && echo Don\\'t forget to change the version number in package.json",
     "dev": "bun run ./index.ts",
     "cleanup": "rm -rf ~/bin/ ~/sgoinfre/*"
   },

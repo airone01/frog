@@ -6,11 +6,13 @@
     "bun": ">=1.1"
   },
   "scripts": {
-    "build": "bun bun --compile --outfile=diem index.ts",
+    "build": "bun bun --compile --outfile=diem ./src/index.ts",
     "deploy": "mv diem /sgoinfre/diem/diem/diem",
     "ci": "bun run build && bun run deploy && chmod 755 /sgoinfre/diem/diem/diem && echo Don\\'t forget to change the version number in package.json",
     "dev": "bun run ./index.ts",
-    "cleanup": "rm -rf ~/bin/ ~/sgoinfre/*"
+    "cleanup": "rm -rf ~/bin/ ~/sgoinfre/*",
+    "lint": "xo",
+    "lint:fix": "xo --fix"
   },
   "devDependencies": {
     "@types/bun": "latest",

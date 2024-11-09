@@ -2,9 +2,9 @@ import {exit} from 'node:process';
 import {program} from 'commander';
 import {z} from 'zod';
 import {mightFail, mightFailSync} from '@might/fail';
-import {PackageManager} from './src/package-manager';
-import {version, name} from './package.json' assert { type: 'json' };
-import {logger} from './src/logger';
+import {version, name} from '../package.json' assert { type: 'json' };
+import {PackageManager} from './package-manager';
+import {logger} from './logger';
 
 program
   .name(name)

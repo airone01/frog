@@ -8,7 +8,7 @@ let
 
   # nodejsVersion = lib.fileContents ./.nvmrc;
 
-  nodejs = import ./nodejs.nix {
+  nodejs = import ./nix/nodejs.nix {
     # enableNpm = false;
     version = "12.22.12";
     sha256 = "sha256-5tBSNkv6LBfaks8xeUEAz9cJuhR0Fd2u7SIi7snKFGk=";

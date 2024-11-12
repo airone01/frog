@@ -1,12 +1,15 @@
-import {join, basename} from 'node:path';
+/* eslint-disable no-await-in-loop */
+import {join, basename, dirname} from 'node:path';
 import {homedir, userInfo} from 'node:os';
 import {
-  chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync,
+  chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import {z} from 'zod';
 import {$} from 'bun';
 import {mightFail, mightFailSync} from '@might/fail';
 import {logger} from './logger';
+import {parsePackageReference} from './config-types';
+import {RegistryManager} from './registry-manager';
 
 // Zod schemas
 const zPackageConfig = z.object({
@@ -15,6 +18,7 @@ const zPackageConfig = z.object({
   binaries: z.array(z.string()),
   installScript: z.string().optional(),
   url: z.string().url().optional(),
+  provider: z.string().optional(),
 });
 
 const zPackageDatabase = z.record(z.string(), zPackageConfig);
@@ -27,8 +31,9 @@ type PackageConfig = z.infer<typeof zPackageConfig>;
 type PackageDatabase = z.infer<typeof zPackageDatabase>;
 
 type PackageSource = {
-  type: 'local' | 'shared' | 'remote';
+  type: 'local' | 'provider' | 'remote';
   location: string;
+  provider?: string;
 };
 
 class PackageManager {
@@ -37,8 +42,8 @@ class PackageManager {
   private readonly goinfrePath: string;
   private readonly binPath: string;
   private readonly packageDb: string;
-  private readonly sharedPackages: string;
   private readonly username: string;
+  private readonly registryManager: RegistryManager;
 
   constructor() {
     this.homePath = homedir();
@@ -47,36 +52,37 @@ class PackageManager {
     this.goinfrePath = join('/goinfre', this.username, 'packages');
     this.binPath = join(this.homePath, 'bin');
     this.packageDb = join(this.sgoinfrePath, 'package-db.json');
-    this.sharedPackages = '/sgoinfre/diem';
+    this.registryManager = new RegistryManager();
 
     this.ensureDirectories();
   }
 
-  async install(packageName: string, options: {force?: boolean} = {}): Promise<void> { // eslint-disable-line complexity
-    logger.info(`Installing package '${packageName}'`);
+  public async install(packageReference: string, options: {force?: boolean} = {}): Promise<void> { // eslint-disable-line complexity
+    logger.info(`Installing package '${packageReference}'`);
 
-    const [sourceError, source] = await mightFail(this.findPackageSource(packageName));
+    const [sourceError, source] = await mightFail(this.resolvePackage(packageReference));
     if (sourceError) {
-      logger.error('Failed to find package source:', sourceError);
-      return;
-    }
-
-    if (!source) {
-      logger.error(`Package ${packageName} not found in any source`);
+      logger.error('Failed to resolve package source:', sourceError);
       return;
     }
 
     let packageDirectory: string;
 
+    // Generate package directory name based on source type and reference
+    const packageDirectoryName = source.type === 'provider' && source.provider
+      ? `${source.provider}_${basename(source.location)}`
+      : basename(source.location);
+
     switch (source.type) {
-      case 'shared': {
-        logger.debug('Copying from shared directory...');
-        packageDirectory = join(this.sgoinfrePath, basename(packageName));
+      case 'provider': {
+        logger.debug('Copying from provider directory...');
+        packageDirectory = join(this.sgoinfrePath, packageDirectoryName);
         const [copyError] = mightFailSync(() => {
           cpSync(source.location, packageDirectory, {recursive: true});
-        });
+        },
+        );
         if (copyError) {
-          logger.error('Failed to copy from shared directory:', copyError);
+          logger.error('Failed to copy from provider directory:', copyError);
           return;
         }
 
@@ -85,10 +91,11 @@ class PackageManager {
 
       case 'local': {
         logger.debug('Copying from local path...');
-        packageDirectory = join(this.sgoinfrePath, basename(packageName));
+        packageDirectory = join(this.sgoinfrePath, packageDirectoryName);
         const [copyError] = mightFailSync(() => {
           cpSync(source.location, packageDirectory, {recursive: true});
-        });
+        },
+        );
         if (copyError) {
           logger.error('Failed to copy from local path:', copyError);
           return;
@@ -99,14 +106,18 @@ class PackageManager {
 
       case 'remote': {
         logger.debug('Preparing for download...');
-        packageDirectory = join(this.sgoinfrePath, packageName);
-        const [mkdirError] = mightFailSync(() => mkdirSync(packageDirectory, {recursive: true}));
+        packageDirectory = join(this.sgoinfrePath, packageDirectoryName);
+        const [mkdirError] = mightFailSync(() =>
+          mkdirSync(packageDirectory, {recursive: true}),
+        );
         if (mkdirError) {
           logger.error('Failed to create package directory:', mkdirError);
           return;
         }
 
-        const [downloadError] = await mightFail(this.downloadPackage(source.location, packageDirectory));
+        const [downloadError] = await mightFail(
+          this.downloadPackage(source.location, packageDirectory),
+        );
         if (downloadError) {
           logger.error('Failed to download package:', downloadError);
           return;
@@ -123,9 +134,22 @@ class PackageManager {
       return;
     }
 
+    // Update config with provider information if from a provider
+    if (source.type === 'provider' && source.provider) {
+      config.provider = source.provider;
+      const [writeError] = mightFailSync(() => {
+        writeFileSync(configPath, JSON.stringify(config, null, 2));
+      },
+      );
+      if (writeError) {
+        logger.error('Failed to update package configuration:', writeError);
+        return;
+      }
+    }
+
     if (config.installScript) {
       logger.debug('Running install script...');
-      const [scriptError, shell] = await mightFail(
+      const [scriptError, result] = await mightFail(
         $`sh -c "cd ${packageDirectory} && (${config.installScript})"`.quiet(),
       );
 
@@ -134,52 +158,26 @@ class PackageManager {
         return;
       }
 
-      const {stdout, stderr} = shell;
-      logger.warn(stdout.toString());
-      if (stderr.length > 0) {
-        logger.error('Install script error:', stderr.toString());
+      logger.warn(result?.stdout.toString());
+      if (result?.stderr.length > 0) {
+        logger.error('Install script error:', result.stderr.toString());
         return;
       }
     }
 
-    logger.debug('Creating symlinks...');
-    for (const binary of config.binaries) {
-      const binaryPath = join(packageDirectory, binary);
-      const binaryLink = join(this.binPath, basename(binary));
+    // Create symlinks
+    await this.createSymlinks(config.binaries, packageDirectory, options.force);
 
-      if (existsSync(binaryLink)) {
-        if (!options.force) {
-          logger.error(`Binary ${binary} already exists. Use --force to override.`);
-          return;
-        }
-
-        const [unlinkError] = mightFailSync(() => {
-          unlinkSync(binaryLink);
-        });
-        if (unlinkError) {
-          logger.error(`Failed to remove existing binary ${binary}:`, unlinkError);
-          return;
-        }
-      }
-
-      const [symlinkError] = mightFailSync(() => {
-        symlinkSync(binaryPath, binaryLink);
-        chmodSync(binaryLink, 0o755);
-      });
-
-      if (symlinkError) {
-        logger.error(`Failed to create symlink for ${binary}:`, symlinkError);
-        return;
-      }
-    }
-
+    // Update package database
     const [databaseError, database] = mightFailSync(() => this.getPackageDb());
     if (databaseError ?? !database) {
       logger.error('Failed to load package database:', databaseError);
       return;
     }
 
-    database[config.name] = config;
+    const packageKey = source.provider ? `${source.provider}:${config.name}` : config.name;
+    database[packageKey] = config;
+
     const [saveError] = mightFailSync(() => {
       this.savePackageDb(database);
     });
@@ -188,7 +186,7 @@ class PackageManager {
       return;
     }
 
-    logger.info(`Successfully installed ${config.name}`);
+    logger.info(`Successfully installed ${packageKey}`);
   }
 
   async uninstall(packageName: string): Promise<void> {
@@ -254,88 +252,47 @@ class PackageManager {
     logger.info(`Successfully uninstalled ${packageName}`);
   }
 
-  async list(options: {available?: boolean} = {}): Promise<void> {
-    logger.debug('Loading package information');
-
-    const [databaseError, database] = mightFailSync(this.getPackageDb);
-    if (databaseError) {
-      logger.error('Failed to list packages', databaseError);
-      return;
-    }
-
-    if (!database) {
-      logger.warn('No packages found (this or there was an error fetching the database)');
+  public async list(options: {available?: boolean} = {}): Promise<void> {
+    const [databaseError, database] = mightFailSync(() => this.getPackageDb());
+    if (databaseError ?? !database) {
+      logger.error('Failed to load package database:', databaseError);
       return;
     }
 
     await (options.available ? this.listAvailablePackages(database) : this.listInstalledPackages(database));
   }
 
-  async search(query: string): Promise<void> {
+  public async search(query: string): Promise<void> {
     logger.debug('Searching for packages');
     let foundAny = false;
 
-    // Search in shared directory
-    if (existsSync(this.sharedPackages)) {
-      const [readDirectoryError, sharedFiles] = mightFailSync(() =>
-        readdirSync(this.sharedPackages),
-      );
-
-      if (readDirectoryError) {
-        logger.error('Failed to read shared packages directory:', readDirectoryError);
-        return;
-      }
-
-      const sharedPackages = sharedFiles.filter(name => name.includes(query));
-
-      if (sharedPackages.length > 0) {
-        foundAny = true;
-        logger.info(
-          `Packages available in shared directory:\n${
-            sharedPackages.map(element => `           - ${element}`).join(', ')
-          }`,
-        );
-      }
+    const [configError, config] = await mightFail(this.registryManager.getConfig());
+    if (configError) {
+      logger.error('Failed to load registry configuration:', configError);
+      return;
     }
 
-    // Search in registry
-    const registryPath = join(this.sharedPackages, 'registry.json');
-    if (existsSync(registryPath)) {
-      const [readError, fileContent] = mightFailSync(() =>
-        readFileSync(registryPath, 'utf8'),
-      );
+    // Search in each provider's directory
+    for (const provider of config.providers) {
+      const providerPath = join('/sgoinfre', provider);
 
+      if (!existsSync(providerPath)) {
+        continue;
+      }
+
+      const [readError, files] = mightFailSync(() => readdirSync(providerPath));
       if (readError) {
-        logger.error('Failed to read registry file:', readError);
-        return;
+        logger.debug(`Failed to read provider directory ${provider}:`, readError);
+        continue;
       }
 
-      const [parseError, registry] = mightFailSync(() =>
-        JSON.parse(fileContent) as Record<string, unknown>,
-      );
+      const matchingPackages = files.filter(name => name.includes(query));
 
-      if (parseError) {
-        logger.error('Failed to parse registry JSON:', parseError);
-        return;
-      }
-
-      const [validateError, validRegistry] = mightFailSync(() =>
-        zRegistry.parse(registry),
-      );
-
-      if (validateError) {
-        logger.error('Invalid registry format:', validateError);
-        return;
-      }
-
-      const remotePackages = Object.keys(validRegistry)
-        .filter(name => name.includes(query));
-
-      if (remotePackages.length > 0) {
+      if (matchingPackages.length > 0) {
         foundAny = true;
         logger.info(
-          `Packages available remotely:\n${
-            remotePackages.map(element => `           - ${element}`).join(', ')
+          `Packages available from ${provider}:\n${
+            matchingPackages.map(package_ => `           - ${provider}:${package_}`).join('\n')
           }`,
         );
       }
@@ -346,37 +303,60 @@ class PackageManager {
     }
   }
 
-  async update(packageName: string, options: {force?: boolean} = {}): Promise<void> {
-    logger.debug(`Checking for updates for ${packageName}`);
+  public async update(packageReference: string, options: {force?: boolean} = {}): Promise<void> {
+    logger.debug(`Checking for updates for ${packageReference}`);
 
+    // Load current package database
     const [databaseError, database] = mightFailSync(() => this.getPackageDb());
     if (databaseError ?? !database) {
       logger.error('Failed to load package database:', databaseError);
       return;
     }
 
-    if (!database[packageName]) {
-      logger.warn(`Package ${packageName} is not installed`);
+    // Try to parse the package reference
+    const [parseError, reference] = await mightFail(async () => {
+      const [configError, config] = await mightFail(this.registryManager.getConfig());
+      if (configError) {
+        throw configError;
+      }
+
+      return parsePackageReference(packageReference, config.defaultProvider);
+    });
+
+    if (parseError) {
+      logger.error('Failed to parse package reference:', parseError);
       return;
     }
 
-    const currentVersion = database[packageName].version;
+    // Create the package key as it would appear in the database
+    const parsedReference = await reference();
+    const packageKey = `${parsedReference.provider}:${parsedReference.name}`;
+    const installedPackage = database[packageKey] ?? database[parsedReference.name];
 
-    const [sourceError, source] = await mightFail(this.findPackageSource(packageName));
+    if (!installedPackage) {
+      logger.warn(`Package ${packageReference} is not installed`);
+      return;
+    }
+
+    // Get the current installed version
+    const currentVersion = installedPackage.version;
+
+    // Try to find the package source
+    const [sourceError, source] = await mightFail(this.resolvePackage(packageReference));
     if (sourceError) {
       logger.error('Failed to find package source:', sourceError);
       return;
     }
 
     if (!source) {
-      logger.error(`Package ${packageName} not found in any source`);
+      logger.error(`Package ${packageReference} not found in any source`);
       return;
     }
 
-    // Get new package configuration based on source type
+    // Get the new package configuration based on source type
     const [configError, newConfig] = await mightFail(async () => {
       switch (source.type) {
-        case 'shared':
+        case 'provider':
         case 'local': {
           const configPath = join(source.location, 'package.json');
           const [loadError, config] = await mightFail(this.loadPackageConfig(configPath));
@@ -384,7 +364,10 @@ class PackageManager {
             throw new Error(`Failed to load package config: ${loadError?.message}`);
           }
 
-          return config;
+          return {
+            ...config,
+            provider: source.provider, // Preserve provider information
+          };
         }
 
         case 'remote': {
@@ -409,7 +392,10 @@ class PackageManager {
             throw new Error(`Invalid remote config format: ${validateError.message}`);
           }
 
-          return config;
+          return {
+            ...config,
+            provider: source.provider, // Preserve provider information
+          };
         }
       }
     });
@@ -419,39 +405,147 @@ class PackageManager {
       return;
     }
 
-    const {version} = await newConfig();
-
+    const {version, installScript, binaries} = await newConfig();
+    // Check if an update is needed
     if (version === currentVersion) {
-      logger.warn(`Package ${packageName} is already at the latest version (${currentVersion})`);
+      logger.warn(`Package ${packageReference} is already at the latest version (${currentVersion})`);
       return;
     }
 
-    logger.info(`Updating ${packageName} from version ${currentVersion} to ${version}`);
+    logger.info(`Updating ${packageReference} from version ${currentVersion} to ${version}`);
 
-    // Uninstall the old version
-    const [uninstallError] = await mightFail(this.uninstall(packageName));
-    if (uninstallError) {
-      logger.error(`Failed to uninstall old version: ${uninstallError.message}`);
+    // Store old binaries for cleanup
+    const oldBinaries = installedPackage.binaries;
+
+    // Determine the package directory
+    const packageDirectoryName = source.provider
+      ? `${source.provider}_${reference.name}`
+      : reference.name;
+    const packageDirectory = join(this.sgoinfrePath, packageDirectoryName);
+
+    // Backup the old installation
+    const backupDirectory = `${packageDirectory}_backup_${currentVersion}`;
+    const [backupError] = mightFailSync(() => {
+      if (existsSync(packageDirectory)) {
+        cpSync(packageDirectory, backupDirectory, {recursive: true});
+      }
+    });
+
+    if (backupError) {
+      logger.error('Failed to create backup:', backupError);
       return;
     }
 
-    // Install the new version
-    const [installError] = await mightFail(this.install(packageName, options));
-    if (installError) {
-      logger.error(`Failed to install new version: ${installError.message}`);
-      // Try to rollback by reinstalling the old version
-      const [rollbackError] = await mightFail(this.install(packageName, {force: true}));
+    // Perform the update based on source type
+    const [updateError] = await mightFail(async () => {
+      // Remove old installation but keep the backup
+      if (existsSync(packageDirectory)) {
+        rmSync(packageDirectory, {recursive: true, force: true});
+      }
+
+      switch (source.type) {
+        case 'provider':
+        case 'local': {
+          cpSync(source.location, packageDirectory, {recursive: true});
+          break;
+        }
+
+        case 'remote': {
+          mkdirSync(packageDirectory, {recursive: true});
+          await this.downloadPackage(source.location, packageDirectory);
+          break;
+        }
+      }
+
+      // Run install script if present
+      if (installScript) {
+        const [scriptError, result] = await mightFail(
+          $`sh -c "cd ${packageDirectory} && (${installScript})"`.quiet(),
+        );
+
+        if (scriptError) {
+          throw new Error(`Install script failed: ${scriptError.message}`);
+        }
+
+        if (result?.stderr.length > 0) {
+          throw new Error(`Install script error: ${result.stderr.toString()}`);
+        }
+
+        logger.debug('Install script output:', result?.stdout.toString());
+      }
+
+      // Update symlinks
+      await this.updateSymlinks(
+        oldBinaries,
+        binaries,
+        packageDirectory,
+        options.force,
+      );
+
+      // Update database entry
+      database[packageKey] = await newConfig();
+      const [saveError] = mightFailSync(() => {
+        this.savePackageDb(database);
+      });
+      if (saveError) {
+        throw new Error(`Failed to save package database: ${saveError.message}`);
+      }
+    });
+
+    if (updateError) {
+      logger.error('Update failed:', updateError);
+
+      // Attempt rollback
+      const [rollbackError] = await mightFail(async () => {
+        logger.warn('Attempting to rollback to previous version...');
+
+        // Restore from backup
+        if (existsSync(backupDirectory)) {
+          if (existsSync(packageDirectory)) {
+            rmSync(packageDirectory, {recursive: true, force: true});
+          }
+
+          cpSync(backupDirectory, packageDirectory, {recursive: true});
+
+          // Restore symlinks
+          await this.updateSymlinks(
+            binaries, // Remove any new symlinks
+            oldBinaries, // Restore old symlinks
+            packageDirectory,
+            true, // Force restore
+          );
+
+          // Restore database entry
+          database[packageKey] = installedPackage;
+          this.savePackageDb(database);
+        }
+      });
+
       if (rollbackError) {
-        logger.error(`Failed to rollback to previous version: ${rollbackError.message}`);
+        logger.error('Rollback failed:', rollbackError);
+        logger.error('System may be in an inconsistent state. Manual intervention required.');
+      } else {
+        logger.info('Successfully rolled back to previous version');
       }
 
       return;
     }
 
-    logger.info(`Successfully updated ${packageName} to version ${version}`);
+    // Cleanup backup on successful update
+    const [cleanupError] = mightFailSync(() => {
+      if (existsSync(backupDirectory)) {
+        rmSync(backupDirectory, {recursive: true, force: true});
+      }
+    });
+
+    if (cleanupError) {
+      logger.warn('Failed to cleanup backup directory:', cleanupError);
+    }
+
+    logger.info(`Successfully updated ${packageReference} to version ${version}`);
   }
 
-  async updateAll(options: {force?: boolean} = {}): Promise<void> {
+  public async updateAll(options: {force?: boolean} = {}): Promise<void> {
     logger.info('Checking for updates for all installed packages');
 
     const [databaseError, database] = mightFailSync(() => this.getPackageDb());
@@ -465,20 +559,26 @@ class PackageManager {
       return;
     }
 
-    const updatePromises = Object.keys(database).map(async packageName => {
-      const [updateError] = await mightFail(this.update(packageName, options));
-      if (updateError) {
-        logger.error(`Failed to update ${packageName}:`, updateError);
-      }
-    });
+    let hasErrors = false;
+    for (const [packageKey, packageInfo] of Object.entries(database)) {
+      const updateReference = packageInfo.provider
+        ? `${packageInfo.provider}:${packageInfo.name}`
+        : packageInfo.name;
 
-    const [allUpdatesError] = await mightFail(Promise.all(updatePromises));
-    if (allUpdatesError) {
-      logger.error('Some updates failed:', allUpdatesError);
-      return;
+      logger.info(`Checking ${updateReference}...`);
+      const [updateError] = await mightFail(this.update(updateReference, options));
+
+      if (updateError) {
+        logger.error(`Failed to update ${updateReference}:`, updateError);
+        hasErrors = true;
+      }
     }
 
-    logger.debug('Finished checking for updates');
+    if (hasErrors) {
+      logger.warn('Some updates failed. Check the logs for details.');
+    } else {
+      logger.info('All packages updated successfully');
+    }
   }
 
   public async sync(): Promise<void> {
@@ -537,6 +637,214 @@ class PackageManager {
     logger.info('Sync completed successfully');
   }
 
+  /**
+   * Creates symlinks for package binaries and sets appropriate permissions
+   * @param binaries Array of binary paths relative to package directory
+   * @param packageDirectory Full path to package directory
+   * @param force Whether to force overwrite existing symlinks
+   */
+  private async createSymlinks(
+    binaries: string[],
+    packageDirectory: string,
+    force = false,
+  ): Promise<void> {
+    logger.debug('Creating symlinks...');
+
+    for (const binary of binaries) {
+      const binaryPath = join(packageDirectory, binary);
+      const binaryLink = join(this.binPath, basename(binary));
+
+      // Ensure the binary exists in the package
+      const [statError] = mightFailSync(() => existsSync(binaryPath));
+      if (statError ?? !existsSync(binaryPath)) {
+        logger.error(`Binary ${binary} not found in package`);
+        continue;
+      }
+
+      // Check if symlink already exists
+      if (existsSync(binaryLink)) {
+        if (!force) {
+          logger.error(`Binary ${binary} already exists. Use --force to override.`);
+          continue;
+        }
+
+        // Remove existing symlink if force is true
+        const [unlinkError] = mightFailSync(() => {
+          unlinkSync(binaryLink);
+        });
+        if (unlinkError) {
+          logger.error(`Failed to remove existing binary ${binary}:`, unlinkError);
+          continue;
+        }
+
+        logger.debug(`Removed existing symlink for ${binary}`);
+      }
+
+      // Create the directory structure if it doesn't exist
+      const linkDirectory = dirname(binaryLink);
+      const [mkdirError] = mightFailSync(() => {
+        if (!existsSync(linkDirectory)) {
+          mkdirSync(linkDirectory, {recursive: true});
+        }
+      });
+
+      if (mkdirError) {
+        logger.error(`Failed to create directory for ${binary}:`, mkdirError);
+        continue;
+      }
+
+      // Create new symlink and set permissions
+      const [symlinkError] = mightFailSync(() => {
+        // Create the symlink
+        symlinkSync(binaryPath, binaryLink);
+
+        // Set executable permissions on the actual binary
+        chmodSync(binaryPath, 0o755);
+
+        // If the symlink is in a different directory, ensure the directory is accessible
+        const symlinkDirectory = dirname(binaryLink);
+        if (symlinkDirectory !== this.binPath) {
+          chmodSync(symlinkDirectory, 0o755);
+        }
+      });
+
+      if (symlinkError) {
+        logger.error(`Failed to create symlink for ${binary}:`, symlinkError);
+
+        // Cleanup on failure
+        const [cleanupError] = mightFailSync(() => {
+          if (existsSync(binaryLink)) {
+            unlinkSync(binaryLink);
+          }
+        });
+
+        if (cleanupError) {
+          logger.warn(`Failed to cleanup failed symlink for ${binary}:`, cleanupError);
+        }
+
+        continue;
+      }
+
+      logger.debug(`Successfully created symlink for ${binary}`);
+    }
+  }
+
+  /**
+   * Removes symlinks for package binaries
+   * @param binaries Array of binary paths
+   */
+  private async removeSymlinks(binaries: string[]): Promise<void> {
+    logger.debug('Removing symlinks...');
+
+    for (const binary of binaries) {
+      const binaryLink = join(this.binPath, basename(binary));
+
+      if (existsSync(binaryLink)) {
+        // Check if it's actually a symlink
+        const [lstatError, stats] = mightFailSync(() => lstatSync(binaryLink));
+        if (lstatError) {
+          logger.error(`Failed to check symlink status for ${binary}:`, lstatError);
+          continue;
+        }
+
+        if (!stats.isSymbolicLink()) {
+          logger.warn(`${binary} exists but is not a symlink, skipping removal`);
+          continue;
+        }
+
+        const [unlinkError] = mightFailSync(() => {
+          unlinkSync(binaryLink);
+        });
+        if (unlinkError) {
+          logger.error(`Failed to remove symlink for ${binary}:`, unlinkError);
+          continue;
+        }
+
+        logger.debug(`Successfully removed symlink for ${binary}`);
+      }
+
+      // Try to clean up empty directories
+      const linkDirectory = dirname(binaryLink);
+      if (linkDirectory !== this.binPath) {
+        const [readdirError, files] = mightFailSync(() => readdirSync(linkDirectory));
+        if (!readdirError && files.length === 0) {
+          const [rmdirError] = mightFailSync(() => {
+            rmdirSync(linkDirectory);
+          });
+          if (rmdirError) {
+            logger.warn(`Failed to remove empty directory ${linkDirectory}:`, rmdirError);
+          } else {
+            logger.debug(`Removed empty directory ${linkDirectory}`);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Updates symlinks for package binaries
+   * @param oldBinaries Array of old binary paths
+   * @param newBinaries Array of new binary paths
+   * @param packageDirectory Full path to package directory
+   * @param force Whether to force overwrite existing symlinks
+   */
+  private async updateSymlinks(
+    oldBinaries: string[],
+    newBinaries: string[],
+    packageDirectory: string,
+    force = false,
+  ): Promise<void> {
+    // First remove old symlinks
+    await this.removeSymlinks(oldBinaries);
+
+    // Then create new symlinks
+    await this.createSymlinks(newBinaries, packageDirectory, force);
+  }
+
+  private async resolvePackage(packageReference: string): Promise<PackageSource> {
+    // First, check if it's a local path
+    if (existsSync(packageReference)) {
+      return {type: 'local', location: packageReference};
+    }
+
+    // Try to resolve from provider
+    const [locationError, location] = await mightFail(
+      this.registryManager.resolvePackageLocation(packageReference),
+    );
+
+    if (!locationError && location) {
+      // Extract provider from package reference
+      const [parseError, reference] = await mightFail(async () => {
+        const [configError, config] = await mightFail(this.registryManager.getConfig());
+        if (configError) {
+          throw configError;
+        }
+
+        return parsePackageReference(packageReference, config.defaultProvider);
+      });
+
+      if (!parseError && reference) {
+        const parsedReference = await reference();
+        return {
+          type: 'provider',
+          location,
+          provider: parsedReference.provider,
+        };
+      }
+    }
+
+    // Try to resolve from remote URL if package has one in its config
+    const [configError, config] = await mightFail(this.loadPackageConfig(
+      join(location ?? '', 'package.json'),
+    ));
+
+    if (!configError && config?.url) {
+      return {type: 'remote', location: config.url};
+    }
+
+    throw new Error(`Unable to resolve package: ${packageReference}`);
+  }
+
   private async listInstalledPackages(database: PackageDatabase): Promise<void> {
     if (Object.keys(database).length === 0) {
       logger.info('No packages installed');
@@ -544,46 +852,57 @@ class PackageManager {
     }
 
     logger.info('Installed packages:');
-    for (const [name, config] of Object.entries(database)) {
-      logger.info(`           - ${name}@${config.version}`);
+    for (const [packageKey, config] of Object.entries(database)) {
+      const providerInfo = config.provider ? ` (from ${config.provider})` : '';
+      logger.info(`           - ${packageKey}@${config.version}${providerInfo}`);
     }
   }
 
-  private async listAvailablePackages(installedDatabase: PackageDatabase): Promise<void> { // eslint-disable-line complexity
-    logger.debug('Searching for available packages...');
+  private async listAvailablePackages(installedDatabase: PackageDatabase): Promise<void> {
+    const [configError, config] = await mightFail(this.registryManager.getConfig());
+    if (configError) {
+      logger.error('Failed to load registry configuration:', configError);
+      return;
+    }
+
     const availablePackages = new Map<string, {
-      source: string;
+      provider: string;
       version?: string;
     }>();
 
-    // Check shared directory
-    if (existsSync(this.sharedPackages)) {
-      const [readError, packages] = mightFailSync(() =>
-        readdirSync(this.sharedPackages),
-      );
+    // Check each provider's directory
+    for (const provider of config.providers) {
+      const providerPath = join('/sgoinfre', provider);
 
-      if (readError) {
-        logger.error('Failed to read shared packages directory:', readError);
-        return;
+      if (!existsSync(providerPath)) {
+        continue;
       }
 
-      for (const packageName of packages) {
-        // Skip registry file and already installed packages
-        if (packageName === 'registry.json' || installedDatabase[packageName]) {
+      const [readError, files] = mightFailSync(() => readdirSync(providerPath));
+      if (readError) {
+        logger.debug(`Failed to read provider directory ${provider}:`, readError);
+        continue;
+      }
+
+      for (const packageName of files) {
+        const packageKey = `${provider}:${packageName}`;
+
+        // Skip already installed packages
+        if (installedDatabase[packageKey]) {
           continue;
         }
 
-        const configPath = join(this.sharedPackages, packageName, 'package.json');
+        const configPath = join(providerPath, packageName, 'package.json');
         if (existsSync(configPath)) {
-          const [loadError, config] = await mightFail(this.loadPackageConfig(configPath)); // eslint-disable-line no-await-in-loop
+          const [loadError, config] = await mightFail(this.loadPackageConfig(configPath));
           if (loadError) {
-            logger.debug(`Failed to load config for ${packageName} in shared directory:`, loadError);
+            logger.debug(`Failed to load config for ${packageKey}:`, loadError);
             continue;
           }
 
           if (config) {
-            availablePackages.set(packageName, {
-              source: 'shared',
+            availablePackages.set(packageKey, {
+              provider,
               version: config.version,
             });
           }
@@ -591,64 +910,17 @@ class PackageManager {
       }
     }
 
-    // Check registry
-    const [registryError, registry] = await mightFail(this.loadRegistry());
-    if (registryError) {
-      logger.debug('Failed to load registry:', registryError);
-    } else if (registry) {
-      for (const [packageName, packageInfo] of Object.entries(registry)) {
-        // Skip already installed packages
-        if (installedDatabase[packageName]) {
-          continue;
-        }
-
-        const [fetchError, response] = await mightFail( // eslint-disable-line no-await-in-loop
-          fetch(packageInfo.url.replace(/\.tar\.gz$/, '/package.json')),
-        );
-        if (fetchError) {
-          logger.debug(`Failed to fetch remote package ${packageName}:`, fetchError);
-          continue;
-        }
-
-        if (!response.ok) {
-          logger.debug(`Failed to fetch version for remote package ${packageName}: ${response.statusText}`);
-          continue;
-        }
-
-        const [jsonError, data] = await mightFail(response.json()); // eslint-disable-line no-await-in-loop
-        if (jsonError) {
-          logger.debug(`Failed to parse JSON for remote package ${packageName}:`, jsonError);
-          continue;
-        }
-
-        const [validationError, config] = mightFailSync(() => zPackageConfig.safeParse(data));
-        if (!validationError && config.success) {
-          availablePackages.set(packageName, {
-            source: 'remote',
-            version: config.data.version,
-          });
-        } else {
-          logger.debug(`Invalid package config for remote package ${packageName}`);
-        }
-      }
-    }
-
     if (availablePackages.size === 0) {
-      logger.debug('No additional packages available');
+      logger.info('No additional packages available');
       return;
     }
 
     logger.info('Available packages:');
-    const sortedAvailablePackages = new Map(
-      [...availablePackages.entries()].sort(([nameA], [nameB]) =>
-        nameA.localeCompare(nameB),
-      ),
-    );
+    const sortedPackages = new Map([...availablePackages.entries()].sort(([a], [b]) => a.localeCompare(b)));
 
-    for (const [name, info] of sortedAvailablePackages) {
+    for (const [packageKey, info] of sortedPackages) {
       const versionString = info.version ? `@${info.version}` : '';
-      const sourceString = `(${info.source})`;
-      logger.info(`           - ${name}${versionString} ${sourceString}`);
+      logger.info(`           - ${packageKey}${versionString}`);
     }
   }
 
@@ -764,90 +1036,6 @@ class PackageManager {
     return validatedConfig;
   }
 
-  private async findPackageSource(packageName: string): Promise<PackageSource | undefined> {
-    logger.debug('Searching for package source');
-
-    // Check shared directory first
-    const sharedPath = join(this.sharedPackages, packageName);
-    if (existsSync(sharedPath)) {
-      const [statError] = mightFailSync(() =>
-        // Additional validation could be done here
-        true,
-      );
-      if (!statError) {
-        logger.debug('Package found in shared directory');
-        return {type: 'shared', location: sharedPath};
-      }
-    }
-
-    // Check if it's a local path
-    if (existsSync(packageName)) {
-      const [statError] = mightFailSync(() =>
-        // Additional validation could be done here
-        true,
-      );
-      if (!statError) {
-        logger.debug('Package found in local path');
-        return {type: 'local', location: packageName};
-      }
-    }
-
-    // Check if package has a remote URL in registry
-    const [registryError, registry] = await mightFail(this.loadRegistry());
-    if (registryError) {
-      logger.debug('Failed to load registry:', registryError);
-      return undefined;
-    }
-
-    if (registry?.[packageName]?.url) {
-      // Validate the URL
-      const [validateError] = mightFailSync(() => {
-        z.string().url().parse(registry[packageName].url); // Will throw if invalid
-        return true;
-      });
-
-      if (!validateError) {
-        logger.debug('Package found in remote registry');
-        return {type: 'remote', location: registry[packageName].url};
-      }
-
-      logger.error('Invalid URL in registry for package:', packageName);
-    }
-
-    logger.error('Package not found in any source');
-    return undefined;
-  }
-
-  private async loadRegistry(): Promise<z.infer<typeof zRegistry> | undefined> {
-    const registryPath = join(this.sharedPackages, 'registry.json');
-    if (!existsSync(registryPath)) {
-      return undefined;
-    }
-
-    const [readError, rawData] = mightFailSync(() =>
-      readFileSync(registryPath, 'utf8'),
-    );
-    if (readError) {
-      throw new Error(`Failed to read registry file: ${readError.message}`);
-    }
-
-    const [parseError, parsedData] = mightFailSync(() =>
-      JSON.parse(rawData) as unknown,
-    );
-    if (parseError) {
-      throw new Error(`Failed to parse registry JSON: ${parseError.message}`);
-    }
-
-    const [validationError, registry] = mightFailSync(() =>
-      zRegistry.parse(parsedData),
-    );
-    if (validationError) {
-      throw new Error(`Invalid registry format: ${validationError.message}`);
-    }
-
-    return registry;
-  }
-
   private async downloadPackage(url: string, destinationDirectory: string): Promise<void> {
     logger.debug('Downloading package');
 
@@ -869,9 +1057,8 @@ class PackageManager {
 
     logger.debug('Saving package...');
     const [writeError] = mightFailSync(() => {
-      writeFileSync(temporaryFile, Buffer.from(buffer));
-    },
-    );
+      writeFileSync(temporaryFile, new Uint8Array(buffer));
+    });
     if (writeError) {
       throw new Error(`Failed to save package: ${writeError.message}`);
     }

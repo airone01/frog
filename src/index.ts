@@ -5,6 +5,7 @@ import {mightFail, mightFailSync} from '@might/fail';
 import {version, name} from '../package.json' assert { type: 'json' };
 import {PackageManager} from './package-manager';
 import {logger} from './logger';
+import {RegistryManager} from './registry-manager';
 
 program
   .name(name)
@@ -13,29 +14,39 @@ program
 
 program
   .command('install <package>')
-  .description('Install a package')
+  .description('Install a package (format: [provider:]package)')
   .option('-f, --force', 'Force installation even if binaries exist')
-  .action(async (_package, options) => {
+  .action(async (packageReference, options) => {
     const manager = new PackageManager();
+    const registryManager = new RegistryManager();
 
-    const [validatePackageError, packageName] = mightFailSync(() => {
-      const {success, data} = z.string().safeParse(_package);
+    const [validateError, validPackageReference] = mightFailSync(() => {
+      const {success, data} = z.string().safeParse(packageReference);
       if (!success) {
-        throw new Error('Please provide a valid package name.');
+        throw new Error('Please provide a valid package reference.');
       }
 
       return data;
     });
 
-    if (validatePackageError) {
-      logger.error('Error:', validatePackageError.message);
+    if (validateError) {
+      logger.error('Error:', validateError.message);
+      exit(1);
+    }
+
+    const [locationError, packageLocation] = await mightFail(
+      registryManager.resolvePackageLocation(validPackageReference),
+    );
+
+    if (locationError ?? !packageLocation) {
+      logger.error('Package location error:', locationError?.message ?? 'Package location not found');
       exit(1);
     }
 
     const [validateOptionsError, validOptions] = mightFailSync(() => {
-      const {success, data} = z.object({force: z.boolean()}).safeParse(options);
+      const {success, data} = z.object({force: z.boolean().optional()}).safeParse(options);
       if (!success) {
-        throw new Error('Invalid options provided.');
+        return {force: false}; // Default options if validation fails
       }
 
       return data;
@@ -46,9 +57,12 @@ program
       exit(1);
     }
 
-    const [installError] = await mightFail(manager.install(packageName, validOptions));
+    const [installError] = await mightFail(
+      manager.install(packageLocation, validOptions),
+    );
+
     if (installError) {
-      logger.error('Installation error:', installError.message);
+      logger.error('Installation failed:', installError);
       exit(1);
     }
   });
@@ -196,6 +210,103 @@ program
         logger.error('Update all error:', updateAllError.message);
         exit(1);
       }
+    }
+  });
+
+const providerCommand = program
+  .command('provider')
+  .description('Manage package providers');
+
+providerCommand
+  .command('add <username>')
+  .description('Add a package provider')
+  .action(async username => {
+    const registryManager = new RegistryManager();
+
+    const [validateError, validUsername] = mightFailSync(() => {
+      const {success, data} = z.string().safeParse(username);
+      if (!success) {
+        throw new Error('Please provide a valid username.');
+      }
+
+      return data;
+    });
+
+    if (validateError) {
+      logger.error('Error:', validateError.message);
+      exit(1);
+    }
+
+    const [error] = await mightFail(registryManager.addProvider(validUsername));
+    if (error) {
+      logger.error('Failed to add provider:', error);
+      exit(1);
+    }
+  });
+
+providerCommand
+  .command('remove <username>')
+  .description('Remove a package provider')
+  .action(async username => {
+    const registryManager = new RegistryManager();
+
+    const [validateError, validUsername] = mightFailSync(() => {
+      const {success, data} = z.string().safeParse(username);
+      if (!success) {
+        throw new Error('Please provide a valid username.');
+      }
+
+      return data;
+    });
+
+    if (validateError) {
+      logger.error('Error:', validateError.message);
+      exit(1);
+    }
+
+    const [error] = await mightFail(registryManager.removeProvider(validUsername));
+    if (error) {
+      logger.error('Failed to remove provider:', error);
+      exit(1);
+    }
+  });
+
+providerCommand
+  .command('default <username>')
+  .description('Set default package provider')
+  .action(async username => {
+    const registryManager = new RegistryManager();
+
+    const [validateError, validUsername] = mightFailSync(() => {
+      const {success, data} = z.string().safeParse(username);
+      if (!success) {
+        throw new Error('Please provide a valid username.');
+      }
+
+      return data;
+    });
+
+    if (validateError) {
+      logger.error('Error:', validateError.message);
+      exit(1);
+    }
+
+    const [error] = await mightFail(registryManager.setDefaultProvider(validUsername));
+    if (error) {
+      logger.error('Failed to set default provider:', error);
+      exit(1);
+    }
+  });
+
+providerCommand
+  .command('list')
+  .description('List configured providers')
+  .action(async () => {
+    const registryManager = new RegistryManager();
+    const [error] = await mightFail(registryManager.listProviders());
+    if (error) {
+      logger.error('Failed to list providers:', error);
+      exit(1);
     }
   });
 

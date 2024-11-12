@@ -4,3 +4,5 @@ node_modules/
 diem
 # Nix
 npm_config_prefix/
+# LLMs
+repomix*

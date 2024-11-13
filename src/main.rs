@@ -1,7 +1,7 @@
 use clap::Parser;
-use colored::Colorize;
 use tracing::{error, info};
 
+mod banner;
 mod cli;
 mod config;
 mod core;
@@ -20,22 +20,18 @@ use crate::package::installer::PackageInstaller;
 use crate::package::uninstaller::PackageUninstaller;
 use crate::registry::RegistryManager;
 
-const BANNER: &str = r#"
-      _/_/
-   _/      _/  _/_/    _/_/      _/_/_/
-_/_/_/_/  _/_/      _/    _/  _/    _/
- _/      _/        _/    _/  _/    _/
-_/      _/          _/_/      _/_/_/
-                                 _/
-  A simple package manager.   _/_/     "#;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logger
     logger::init_logger();
 
-    // Print banner
-    println!("{}", BANNER.bright_blue());
+    // Get command line arguments
+    let args: Vec<String> = std::env::args().collect();
+
+    // Show banner only for --help or when no arguments are provided
+    if args.len() == 1 || args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
+        banner::print_banner();
+    }
 
     // Parse command line arguments
     let cli = Cli::parse();

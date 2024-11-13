@@ -2,7 +2,7 @@ use clap::Parser;
 
 #[derive(Parser)]
 #[command(name = "diem")]
-#[command(about = "Diem Is an Environment Manager", long_about = None)]
+#[command(about = None, long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

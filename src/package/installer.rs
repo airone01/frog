@@ -44,8 +44,8 @@ impl PackageInstaller {
         PermissionChecker::check_required_permissions().await?;
 
         // Check specific directory permissions
-        PermissionChecker::check_directory_permissions(&self.config.package_root()).await?;
-        PermissionChecker::check_directory_permissions(&self.config.binaries_path()).await?;
+        PermissionChecker::check_directory_permissions(&self.config.package_root(), true).await?;
+        PermissionChecker::check_directory_permissions(&self.config.binaries_path(), true).await?;
 
         // Rest of the installation process...
         let _lock = self.acquire_install_lock(reference).await?;

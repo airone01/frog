@@ -11,6 +11,7 @@ use crate::config::Config;
 use crate::fs::FileSystem;
 use crate::models::Package;
 use crate::models::PackageReference;
+use crate::perms::PermissionChecker;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 
@@ -39,8 +40,19 @@ impl PackageInstaller {
         reference: &PackageReference,
         force: bool,
     ) -> anyhow::Result<()> {
-        // Acquire installation lock
+        // Verify permissions before installation
+        PermissionChecker::check_required_permissions().await?;
+
+        // Check specific directory permissions
+        PermissionChecker::check_directory_permissions(&self.config.package_root()).await?;
+        PermissionChecker::check_directory_permissions(&self.config.binaries_path()).await?;
+
+        // Rest of the installation process...
         let _lock = self.acquire_install_lock(reference).await?;
+        info!(
+            "Installing package {} with verified permissions",
+            package.name
+        );
 
         info!("Installing package {}", package.name);
 

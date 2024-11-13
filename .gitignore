@@ -1,5 +1,5 @@
-# LLMs
-repomix-output.txt
+# LLMs junk
+*.txt
 
 # Rust
 /target

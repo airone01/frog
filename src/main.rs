@@ -10,6 +10,7 @@ mod fs;
 mod logger;
 mod models;
 mod package;
+mod perms;
 mod registry;
 
 use crate::cli::Cli;

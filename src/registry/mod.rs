@@ -11,6 +11,7 @@ use self::error::RegistryError;
 use crate::config::Config;
 use crate::fs::FileSystem;
 use crate::models::{Package, PackageReference};
+use crate::perms::PermissionChecker;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RegistryConfig {
@@ -105,6 +106,8 @@ impl RegistryManager {
     }
 
     pub async fn new(config: &Config, fs: &FileSystem) -> Result<Self> {
+        PermissionChecker::check_required_permissions().await?;
+
         let config_path = config.config_dir().join("registry.json");
         let registry_config = Self::load_or_create_config(&config_path, fs).await?;
 

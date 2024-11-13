@@ -1,0 +1,356 @@
+warning: unused manifest key: profile.release.clap
+   Compiling diem v0.1.0 (/home/r1/diem)
+error: cannot find derive macro `Parser` in this scope
+ --> src/cli.rs:3:10
+  |
+3 | #[derive(Parser)]
+  |          ^^^^^^
+  |
+note: `Parser` is imported here, but it is only a trait, without a derive macro
+ --> src/cli.rs:1:21
+  |
+1 | use clap::{command, Parser, Subcommand};
+  |                     ^^^^^^
+
+error: cannot find attribute `command` in this scope
+ --> src/cli.rs:4:3
+  |
+4 | #[command(name = "diem")]
+  |   ^^^^^^^
+  |
+note: `command` is imported here, but it is a function-like macro
+ --> src/cli.rs:1:12
+  |
+1 | use clap::{command, Parser, Subcommand};
+  |            ^^^^^^^
+
+error: cannot find attribute `command` in this scope
+ --> src/cli.rs:5:3
+  |
+5 | #[command(about = "Diem Is an Environment Manager", long_about = None)]
+  |   ^^^^^^^
+  |
+note: `command` is imported here, but it is a function-like macro
+ --> src/cli.rs:1:12
+  |
+1 | use clap::{command, Parser, Subcommand};
+  |            ^^^^^^^
+
+error: cannot find attribute `command` in this scope
+ --> src/cli.rs:7:7
+  |
+7 |     #[command(subcommand)]
+  |       ^^^^^^^
+  |
+note: `command` is imported here, but it is a function-like macro
+ --> src/cli.rs:1:12
+  |
+1 | use clap::{command, Parser, Subcommand};
+  |            ^^^^^^^
+
+error: cannot find derive macro `Subcommand` in this scope
+  --> src/cli.rs:11:10
+   |
+11 | #[derive(Subcommand)]
+   |          ^^^^^^^^^^
+   |
+note: `Subcommand` is imported here, but it is only a trait, without a derive macro
+  --> src/cli.rs:1:29
+   |
+1  | use clap::{command, Parser, Subcommand};
+   |                             ^^^^^^^^^^
+
+error: cannot find attribute `arg` in this scope
+  --> src/cli.rs:18:11
+   |
+18 |         #[arg(short, long)]
+   |           ^^^
+
+error: cannot find attribute `arg` in this scope
+  --> src/cli.rs:33:11
+   |
+33 |         #[arg(short, long)]
+   |           ^^^
+
+error: cannot find attribute `arg` in this scope
+  --> src/cli.rs:40:11
+   |
+40 |         #[arg(short, long)]
+   |           ^^^
+
+error: cannot find attribute `command` in this scope
+  --> src/cli.rs:52:11
+   |
+52 |         #[command(subcommand)]
+   |           ^^^^^^^
+   |
+note: `command` is imported here, but it is a function-like macro
+  --> src/cli.rs:1:12
+   |
+1  | use clap::{command, Parser, Subcommand};
+   |            ^^^^^^^
+
+error: cannot find derive macro `Subcommand` in this scope
+  --> src/cli.rs:60:10
+   |
+60 | #[derive(Subcommand)]
+   |          ^^^^^^^^^^
+   |
+note: `Subcommand` is imported here, but it is only a trait, without a derive macro
+  --> src/cli.rs:1:29
+   |
+1  | use clap::{command, Parser, Subcommand};
+   |                             ^^^^^^^^^^
+
+error[E0433]: failed to resolve: could not find `Permissions` in `fs`
+   --> src/package/installer.rs:165:47
+    |
+165 |         fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755)).await?;
+    |                                               ^^^^^^^^^^^ could not find `Permissions` in `fs`
+    |
+help: consider importing one of these structs
+    |
+1   + use crate::package::installer::Permissions;
+    |
+1   + use std::fs::Permissions;
+    |
+help: if you import `Permissions`, refer to it directly
+    |
+165 -         fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755)).await?;
+165 +         fs::set_permissions(&script_path, Permissions::from_mode(0o755)).await?;
+    |
+
+error[E0433]: failed to resolve: could not find `Permissions` in `fs`
+   --> src/package/installer.rs:225:46
+    |
+225 |             fs::set_permissions(&source, fs::Permissions::from_mode(0o755)).await?;
+    |                                              ^^^^^^^^^^^ could not find `Permissions` in `fs`
+    |
+help: consider importing this struct
+    |
+1   + use std::fs::Permissions;
+    |
+help: if you import `Permissions`, refer to it directly
+    |
+225 -             fs::set_permissions(&source, fs::Permissions::from_mode(0o755)).await?;
+225 +             fs::set_permissions(&source, Permissions::from_mode(0o755)).await?;
+    |
+
+warning: unused import: `crate::package::models::Package`
+ --> src/core/mod.rs:6:5
+  |
+6 | use crate::package::models::Package;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `crate::registry::models::PackageReference`
+ --> src/core/mod.rs:7:5
+  |
+7 | use crate::registry::models::PackageReference;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `PathBuf`
+ --> src/fs/mod.rs:2:23
+  |
+2 | use std::path::{Path, PathBuf};
+  |                       ^^^^^^^
+
+warning: unused import: `std::fs::Permissions`
+  --> src/package/installer.rs:13:5
+   |
+13 | use std::fs::Permissions;
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Path`
+ --> src/package/uninstaller.rs:2:17
+  |
+2 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused import: `installer::PackageInstaller`
+ --> src/package/mod.rs:8:9
+  |
+8 | pub use installer::PackageInstaller;
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `semver::Version`
+ --> src/registry/models.rs:1:5
+  |
+1 | use semver::Version;
+  |     ^^^^^^^^^^^^^^^
+
+warning: use of deprecated function `base64::decode`: Use Engine::decode
+  --> src/package/validation.rs:23:33
+   |
+23 |         let signature = base64::decode(signature)?;
+   |                                 ^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: unused variable: `parent`
+  --> src/core/dependency.rs:34:60
+   |
+34 |     async fn resolve_package(&mut self, package: &Package, parent: Option<&Package>) -> Result<()> {
+   |                                                            ^^^^^^ help: if this is intentional, prefix it with an underscore: `_parent`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `dep`
+  --> src/core/dependency.rs:89:40
+   |
+89 |     async fn resolve_dependency(&self, dep: &PackageDependency, parent: &Package) -> Result<()> {
+   |                                        ^^^ help: if this is intentional, prefix it with an underscore: `_dep`
+
+warning: unused variable: `parent`
+  --> src/core/dependency.rs:89:65
+   |
+89 |     async fn resolve_dependency(&self, dep: &PackageDependency, parent: &Package) -> Result<()> {
+   |                                                                 ^^^^^^ help: if this is intentional, prefix it with an underscore: `_parent`
+
+warning: unused variable: `url`
+  --> src/package/installer.rs:51:21
+   |
+51 |         if let Some(url) = &package.url {
+   |                     ^^^ help: if this is intentional, prefix it with an underscore: `_url`
+
+error[E0609]: no field `checksum` on type `&registry::models::Package`
+   --> src/package/installer.rs:136:51
+    |
+136 |         if let Some(expected_checksum) = &package.checksum {
+    |                                                   ^^^^^^^^ unknown field
+    |
+    = note: available fields are: `name`, `version`, `provider`, `binaries`, `install_script` ... and 7 others
+
+error[E0609]: no field `signature` on type `&registry::models::Package`
+   --> src/package/installer.rs:148:64
+    |
+148 |         if let (Some(signature), Some(public_key)) = (&package.signature, &package.public_key) {
+    |                                                                ^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `name`, `version`, `provider`, `binaries`, `install_script` ... and 7 others
+
+error[E0609]: no field `public_key` on type `&registry::models::Package`
+   --> src/package/installer.rs:148:84
+    |
+148 |         if let (Some(signature), Some(public_key)) = (&package.signature, &package.public_key) {
+    |                                                                                    ^^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `name`, `version`, `provider`, `binaries`, `install_script` ... and 7 others
+
+warning: unused variable: `none`
+  --> src/registry/mod.rs:39:13
+   |
+39 |             none => self.config.providers.clone(),
+   |             ^^^^ help: if this is intentional, prefix it with an underscore: `_none`
+
+error[E0599]: no method named `with_span_events` found for struct `tracing_subscriber::fmt::format::Format` in the current scope
+  --> src/logger/mod.rs:23:14
+   |
+16 |           let format = fmt::format()
+   |  ______________________-
+17 | |             .with_level(true)
+18 | |             .with_target(false)
+19 | |             .with_thread_ids(false)
+...  |
+22 | |             .with_line_number(false)
+23 | |             .with_span_events(FmtSpan::NONE)
+   | |_____________-^^^^^^^^^^^^^^^^
+   |
+help: there is a method `with_level` with a similar name
+   |
+23 |             .with_level(FmtSpan::NONE)
+   |              ~~~~~~~~~~
+
+error[E0308]: mismatched types
+   --> src/package/installer.rs:246:31
+    |
+246 |         let dir_name = if let Some(provider) = &reference.provider {
+    |                               ^^^^^^^^^^^^^^   ------------------- this expression has type `&std::string::String`
+    |                               |
+    |                               expected `String`, found `Option<_>`
+    |
+    = note: expected struct `std::string::String`
+                 found enum `std::option::Option<_>`
+
+error[E0308]: mismatched types
+   --> src/package/uninstaller.rs:201:31
+    |
+201 |         let dir_name = if let Some(provider) = &reference.provider {
+    |                               ^^^^^^^^^^^^^^   ------------------- this expression has type `&std::string::String`
+    |                               |
+    |                               expected `String`, found `Option<_>`
+    |
+    = note: expected struct `std::string::String`
+                 found enum `std::option::Option<_>`
+
+error[E0599]: no function or associated item named `parse` found for struct `Cli` in the current scope
+  --> src/main.rs:39:20
+   |
+39 |     let cli = Cli::parse();
+   |                    ^^^^^ function or associated item not found in `Cli`
+   |
+  ::: src/cli.rs:6:1
+   |
+6  | pub struct Cli {
+   | -------------- function or associated item `parse` not found for this struct
+   |
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following traits define an item `parse`, perhaps you need to implement one of them:
+           candidate #1: `Parser`
+           candidate #2: `TypedValueParser`
+
+error[E0308]: mismatched types
+   --> src/main.rs:55:58
+    |
+55  |             let package_info = registry.get_package_info(&reference).await?;
+    |                                         ---------------- ^^^^^^^^^^ expected `&Path`, found `&PackageReference`
+    |                                         |
+    |                                         arguments to this method are incorrect
+    |
+    = note: expected reference `&std::path::Path`
+               found reference `&PackageReference`
+note: method defined here
+   --> src/registry/mod.rs:178:18
+    |
+178 |     pub async fn get_package_info(&self, package_path: &Path) -> Result<Package> {
+    |                  ^^^^^^^^^^^^^^^^        -------------------
+
+warning: unused import: `clap::Parser`
+ --> src/main.rs:1:5
+  |
+1 | use clap::Parser;
+  |     ^^^^^^^^^^^^
+
+error[E0596]: cannot borrow `writer` as mutable, as it is not declared as mutable
+  --> src/logger/formatter.rs:25:9
+   |
+25 |         writer: Writer<'_>,
+   |         ^^^^^^ not mutable
+...
+40 |         write!(writer, "{:>5} ", level)?;
+   |                ------ cannot borrow as mutable
+...
+44 |         writeln!(writer)
+   |                  ------ cannot borrow as mutable
+   |
+help: consider changing this to be mutable
+   |
+25 |         mut writer: Writer<'_>,
+   |         +++
+
+error[E0382]: borrow of moved value: `writer`
+  --> src/logger/formatter.rs:44:18
+   |
+25 |         writer: Writer<'_>,
+   |         ------ move occurs because `writer` has type `Writer<'_>`, which does not implement the `Copy` trait
+...
+43 |         ctx.field_format().format_fields(writer, event)?;
+   |                                          ------ value moved here
+44 |         writeln!(writer)
+   |                  ^^^^^^ value borrowed here after move
+
+Some errors have detailed explanations: E0308, E0382, E0433, E0596, E0599, E0609.
+For more information about an error, try `rustc --explain E0308`.
+warning: `diem` (bin "diem") generated 14 warnings
+error: could not compile `diem` (bin "diem") due to 22 previous errors; 14 warnings emitted

@@ -39,3 +39,19 @@ pub enum PackageError {
     #[error("Invalid package: {0}")]
     ValidationError(String),
 }
+
+#[derive(Debug, Error)]
+pub enum InstallationError {
+    #[error("Package not found: {0}")]
+    PackageNotFound(String),
+    #[error("Version not found: {0} {1}")]
+    VersionNotFound(String, String),
+    #[error("Dependency resolution failed: {0}")]
+    DependencyResolutionFailed(String),
+    #[error("Installation failed: {0}")]
+    InstallationFailed(String),
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("Repository error: {0}")]
+    RepositoryError(#[from] RepositoryError),
+}

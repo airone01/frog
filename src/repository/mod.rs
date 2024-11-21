@@ -6,11 +6,11 @@ use crate::error::RepositoryError;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Package {
-    name: String,
-    version: String,
-    description: Option<String>,
-    dependencies: Vec<String>,
-    files: Vec<PathBuf>,
+    pub name: String,
+    pub version: String,
+    pub description: Option<String>,
+    pub dependencies: Vec<String>,
+    pub files: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -23,10 +23,10 @@ pub struct Repository {
 
 #[derive(Debug)]
 pub struct RepositoryManager {
-    sgoinfre_path: PathBuf,
-    own_repo_path: PathBuf,
-    username: String,
-    repositories: HashMap<String, Repository>,
+    pub sgoinfre_path: PathBuf,
+    pub own_repo_path: PathBuf,
+    pub username: String,
+    pub repositories: HashMap<String, Repository>,
 }
 
 impl Repository {

@@ -1,5 +1,8 @@
 mod cli;
+mod config;
 mod consts;
+mod error;
+mod repository;
 
 use clap::{Command, CommandFactory, Parser};
 use clap_complete::{generate, Generator};

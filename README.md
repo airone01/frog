@@ -13,6 +13,45 @@
   <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/airone01/diem?style=flat&labelColor=020617&color=5a45fe">
 </h4>
 
+```
+📦 diem
+├── Cargo.toml
+├── README.md
+├── .*                         # Configuration files
+├── src
+│   ├── main.rs                # Entry point
+│   ├── cli.rs                 # CLI argument handling
+│   ├── package
+│   │   ├── mod.rs             # Package module definitions
+│   │   ├── manifest.rs        # Package manifest handling
+│   │   ├── dependency.rs      # Dependency resolution logic
+│   │   └── version.rs         # Version parsing and comparison
+│   ├── repository
+│   │   ├── mod.rs             # Repository module definitions
+│   │   ├── config.rs          # Repository configuration
+│   │   ├── storage.rs         # Package storage handling
+│   │   ├── source.rs          # Source management (add/remove/list)
+│   │   ├── discovery.rs       # Package discovery across sources
+│   │   └── sync.rs            # Repository synchronization
+│   ├── config
+│   │   ├── mod.rs             # Configuration module definitions
+│   │   ├── settings.rs        # Global settings management
+│   │   └── sources.rs         # Source list configuration
+│   └── utils
+│       ├── mod.rs             # Utility module definitions
+│       ├── hash.rs            # Hash calculation utilities
+│       ├── http.rs            # HTTP client utilities
+│       └── validation.rs      # Source validation utilities
+├── tests
+│   ├── integration_tests.rs   # Integration tests
+│   ├── source_tests.rs        # Source management tests
+│   └── test_data              # Test fixtures
+├── examples                   # Example usage
+└── docs                       # Documentation
+    ├── sources.md             # Source configuration documentation
+    └── config.md              # Configuration documentation
+```
+
 ## Features
 
 TODO
@@ -28,9 +67,6 @@ TODO
 ## Hosting/adding packages
 
 TODO
-
-## Roadmap
-
 
 ## 📋 Roadmap
 

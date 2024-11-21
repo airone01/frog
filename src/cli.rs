@@ -141,6 +141,6 @@ pub fn get_styles() -> Styles {
         .literal(anstyle::Style::new().fg_color(Some(foam_main)))
         .invalid(anstyle::Style::new().bold().fg_color(Some(love_dawn)))
         .error(anstyle::Style::new().bold().fg_color(Some(love_dawn)))
-        .placeholder(anstyle::Style::new().fg_color(Some(muted_dawn)).dimmed())
+        .placeholder(anstyle::Style::new().fg_color(Some(muted_dawn)))
         .valid(anstyle::Style::new().bold().fg_color(Some(gold_dawn)))
 }

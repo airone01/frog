@@ -37,12 +37,6 @@ TODO
 | Category | Task | Priority | Status |
 |----------|------|----------|--------|
 | Feature | Package installation | High | 🟡 Pending |
-| Feature | Postinstall scripts | High | 🟡 Pending |
-| Feature | Isolation | Low | 🔴 Not Started |
-| Feature | Package sources | High | 🟡 Pending |
-| Feature | Protocol and website | Low | 🔴 Not Started |
-| Documentation | Set up docs website | Medium | 🔴 Not Started |
-| Documentation | Create contribution guidelines | Medium | 🔴 Not Started |
 
 Legend:
 - 🟢 Complete

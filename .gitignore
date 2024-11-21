@@ -6,3 +6,8 @@ diem
 npm_config_prefix/
 # LLMs
 repomix*
+
+
+# Added by cargo
+
+/target

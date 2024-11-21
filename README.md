@@ -52,6 +52,9 @@
     └── config.md              # Configuration documentation
 ```
 
+NOTE: "Disk Quota Exceeded" error CAN and WILL happen on sgoinfre because the architecture of the filesystem is not designed to handle a large number of small files. This is a known issue and there is no fix for it. The only solution is to wait for admins to clear the disk space.
+TODO: Add a note about this when the error occurs.
+
 ## Features
 
 TODO

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::consts::{APP_NAME, APP_VERSION};
 use clap::{builder::Styles, Parser};
 use clap_complete::Shell;
@@ -45,6 +47,10 @@ pub enum Commands {
 
     /// Manage package sources (trusted students)
     Sources(Sources),
+
+    #[command(alias = "p")]
+    /// Publish a package
+    Publish(Publish),
 
     /// Generate shell completion scripts
     Completion(Completion),
@@ -114,6 +120,14 @@ pub struct Search {
 pub struct Completion {
     /// The shell to generate completions for
     pub shell: Shell,
+}
+
+#[derive(Parser, Debug)]
+#[command(about = "Publish a package", arg_required_else_help = true)]
+pub struct Publish {
+    /// Path to the package manifest (package.toml)
+    #[arg(default_value = "package.toml")]
+    pub manifest_path: PathBuf,
 }
 
 pub fn get_styles() -> Styles {

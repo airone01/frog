@@ -1,0 +1,7 @@
+name = "gh"
+version = "1.0.0"
+description = "My awesome package"
+authors = ["John Doe"]
+license = "MIT"
+dependencies = []
+files = ["./gh"]

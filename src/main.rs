@@ -5,9 +5,9 @@ mod error;
 mod package;
 mod repository;
 
-use clap::{Command, CommandFactory, Parser};
+use clap::{Command, Parser};
 use clap_complete::{generate, Generator};
-use package::get_installer;
+use package::{get_installer, publish_package};
 
 use crate::cli::Args;
 
@@ -50,25 +50,13 @@ async fn cli_matcher() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Ok(())
             }
-            cli::Commands::List => {
-                println!("Listing installed packages");
+            cli::Commands::Publish(publish) => {
+                publish_package(publish.manifest_path).await?;
                 Ok(())
             }
-            cli::Commands::Search(search) => {
-                println!("Searching for package: {}", search.query);
-                Ok(())
-            }
-            cli::Commands::Info => {
-                println!("Displaying information about a package");
-                Ok(())
-            }
-            cli::Commands::Sources(sources) => {
-                println!("Managing package sources: {:?}", sources);
-                Ok(())
-            }
-            cli::Commands::Completion(comp) => {
-                let mut cmd = Args::command();
-                print_completions(comp.shell, &mut cmd);
+            // ... (keep other command matches)
+            _ => {
+                println!("Command not implemented yet");
                 Ok(())
             }
         },

@@ -8,6 +8,9 @@ use crate::package::install::PackageInstaller;
 use crate::repository::RepositoryManager;
 
 mod install;
+mod publish;
+
+pub use publish::PackagePublisher;
 
 pub async fn get_installer() -> Result<PackageInstaller, InstallationError> {
     let repo_manager = RepositoryManager::new(whoami::username().to_string()).await?;
@@ -17,4 +20,15 @@ pub async fn get_installer() -> Result<PackageInstaller, InstallationError> {
         PathBuf::from(temp_dir().join("package-manager")),
     )
     .await
+}
+
+pub async fn publish_package(manifest_path: PathBuf) -> Result<(), InstallationError> {
+    let mut repo_manager = RepositoryManager::new(whoami::username().to_string()).await?;
+    let publisher = PackagePublisher::new(manifest_path).await.map_err(|e| {
+        InstallationError::InstallationFailed(format!("Failed to create publisher: {}", e))
+    })?;
+
+    publisher.publish(&mut repo_manager).await.map_err(|e| {
+        InstallationError::InstallationFailed(format!("Failed to publish package: {}", e))
+    })
 }

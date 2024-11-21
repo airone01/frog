@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{consts::CONFIG_VERSION, error::ConfigError};
+use crate::error::ConfigError;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Repository {

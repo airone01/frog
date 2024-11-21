@@ -95,12 +95,12 @@ impl Repository {
             .join(&package.version);
         async_fs::create_dir_all(&package_dir).await?;
 
+        // Create metadata directory
+        let metadata_dir = self.path.join("metadata").join(&package.name);
+        async_fs::create_dir_all(&metadata_dir).await?;
+
         // Save package metadata
-        let metadata_path = self
-            .path
-            .join("metadata")
-            .join(&package.name)
-            .join(format!("{}.toml", package.version));
+        let metadata_path = metadata_dir.join(format!("{}.toml", package.version));
 
         let metadata = toml::to_string(&package).map_err(|e| {
             RepositoryError::InitializationError(format!(
@@ -109,6 +109,7 @@ impl Repository {
             ))
         })?;
 
+        println!("metadata_path: {:?}", metadata_path);
         async_fs::write(metadata_path, metadata).await?;
 
         // Update index
